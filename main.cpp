@@ -1,7 +1,6 @@
 #include <iostream>
 #include <cmath>
 #include <random>
-#include <functional>
 
 using namespace std;
 
@@ -90,7 +89,7 @@ double * evaluate(int ** population, Point * cities, const int populationSize, c
             totalDistance +=  cities[population[i][j]].dist(cities[population[i][j+1]]);
         }
         evaluation[i] = totalDistance;
-        cout << "Total distance for chromosome " << i << ": " << totalDistance << endl;
+        // cout << "Total distance for chromosome " << i << ": " << totalDistance << endl;
     }
     return evaluation;
 }
@@ -105,10 +104,11 @@ double *calculateFitness(const double *evaluation, const int populationSize) {
     double totalFitness = 0;
     for (int i = 0; i < populationSize; ++i) {
         fitness[i] = fitness[i] / totalInverse;
-        cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
+        // cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
         totalFitness += fitness[i];
     }
-    cout << "Total fitness: " << totalFitness << endl;
+    // cout << "Total fitness: " << totalFitness << endl;
+    cout << "Best fitness: " << bestFitness << endl;
     return fitness;
 }
 
@@ -132,8 +132,97 @@ int **selection(double *fitness, int** population, const int populationSize) {
     return selection;
 }
 
+bool isContained(int el, const int *array, int nEl) {
+    for (int i = 0; i < nEl; ++i) {
+        if (array[i] == el) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
+    int * combination = new int[nEl];
+    // Pick two rand indexes
+    int indexA = rand() % nEl;
+    int indexB = rand() % nEl;
+
+
+    if (indexB < indexA){
+        int aux = indexA;
+        indexA = indexB;
+        indexB = aux;
+    }
+
+    // cout << "IndexA: " << indexA << " ";
+    // cout << "IndexB: " << indexB << " " << endl;
+
+    // First, put chromosomeA[indexA..indexB (included)] into combination[0..indexB-indexA]
+    int i;
+    int chromosomeIndex = indexA;
+    for (i = 0; i < indexB-indexA+1; ++i) {
+        combination[i] = chromosomeA[chromosomeIndex];
+        chromosomeIndex++;
+    }
+
+    int combinationIndex = i;
+    chromosomeIndex = 0;
+
+    // Let's combine the rest of the elements
+
+    while (combinationIndex<nEl) {
+        if (!isContained(chromosomeB[chromosomeIndex], combination, combinationIndex)){
+            combination[combinationIndex] = chromosomeB[chromosomeIndex];
+            combinationIndex++;
+        }
+        chromosomeIndex++;
+    }
+
+    // cout << "Combination: ";
+    for (int j = 0; j < nEl; ++j) {
+        // cout << combination[j] << " ";
+    }
+    //cout << endl;
+
+    return combination;
+}
+
+int **crossover(int **population, const int populationSize, const int nCities) {
+    int ** selection = new int*[populationSize];
+    for (int i = 0; i < populationSize; ++i) {
+        int indexA = rand() % populationSize;
+        int indexB = rand() % populationSize;
+        int* mateA = population[indexA];
+        int* mateB = population[indexB];
+        // cout << "Mate A: ";
+        for (int j = 0; j < nCities; ++j) {
+            // cout << mateA[j] << " ";
+        }
+        // cout << endl;
+
+        // cout << "Mate B: ";
+        for (int j = 0; j < nCities; ++j) {
+            // cout << mateB[j] << " ";
+        }
+        // cout << endl;
+
+        selection[i] = recombine(mateA, mateB, nCities);
+    }
+    return selection;
+}
+
+void printPopulation(int *const *intermediatePopulation, const int populationSize, const int nCities) {
+    for (int i = 0; i < populationSize; ++i) {
+        cout << "Chromosome " << i << ":";
+        for (int j = 0; j < nCities; ++j) {
+            cout << " " << intermediatePopulation[i][j];
+        }
+        // cout << endl;
+    }
+}
+
 int main() {
-    const int nCities = 5;
+    const int nCities = 10;
     const double min = 0;
     const double max = 100;
     const unsigned int seed = 35412;
@@ -143,9 +232,9 @@ int main() {
     for (int i = 0; i < nCities; ++i) {
         cities[i].print(cout);
     }
-    std::cout << endl;
+    // cout << endl;
 
-    int const populationSize = 5;
+    int const populationSize = 300;
 
     int **population;
     population = new int *[populationSize];
@@ -171,41 +260,37 @@ int main() {
         }
     }
 
-    for (int i = 0; i < populationSize; ++i) {
-        // Printing our array
-        for (int j = 0; j < nCities; ++j)
-            cout << population[i][j] << " ";
-        cout << endl;
-    }
+    // printPopulation(population, populationSize, nCities);
 
     // Now we have an initial population ready
 
-    // Let's calculate the fitness
+    while(true) {
 
-    double * evaluation = evaluate(population, cities, populationSize, nCities);
+        // Let's calculate the fitness
 
-    // Now calculate fitness (a percentage) based on the evaluation
+        double *evaluation = evaluate(population, cities, populationSize, nCities);
 
-    double * fitness = calculateFitness(evaluation, populationSize);
+        // Now calculate fitness (a percentage) based on the evaluation
 
-    // It's time for reproduction!
+        double *fitness = calculateFitness(evaluation, populationSize);
 
-    // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
+        // It's time for reproduction!
 
-    // Select populationSize elements so that the higher the fitness the higher the probability to be selected
+        // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
 
-    int ** intermediatePopulation = selection(fitness, population, populationSize);
+        // Select populationSize elements so that the higher the fitness the higher the probability to be selected
 
-    for (int i = 0; i < populationSize; ++i) {
-        cout << "Intermediate chromosome " << i << ":";
-        for (int j = 0; j < nCities; ++j) {
-            cout << " " << intermediatePopulation[i][j];
-        }
-        cout << endl;
+        int **intermediatePopulation = selection(fitness, population, populationSize);
+
+        // printPopulation(intermediatePopulation, populationSize, nCities);
+
+        // With the intermediate population I can now crossover the elements
+        int **nextGen = crossover(intermediatePopulation, populationSize, nCities);
+
+        // printPopulation(nextGen, populationSize, nCities);
+
+        population = nextGen;
     }
-
-    // With the intermediate population I can now crossover the elements
-
 
     return 0;
 }
