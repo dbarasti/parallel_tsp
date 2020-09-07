@@ -1,7 +1,8 @@
 #include <iostream>
 #include <cmath>
 #include <random>
-
+#include <chrono>
+#include <ctime>
 using namespace std;
 
 // Class to represent points.
@@ -86,7 +87,7 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
         }
         // Evaluation score of i-th chromosome
         evaluation[i] = totalDistanceOfChromosome;
-        cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
+        // cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
     }
     return evaluation;
 }
@@ -95,17 +96,13 @@ double *calculateFitness(const double *evaluation, const int populationSize) {
     auto fitness = new double[populationSize];
     double totalEvaluation = 0;
     for (int i = 0; i < populationSize; ++i) {
-        // fitness[i] = 1 / evaluation[i];
         totalEvaluation += evaluation[i];
     }
     double avgEval = totalEvaluation / populationSize;
-    double totalFitness = 0;
     for (int i = 0; i < populationSize; ++i) {
         fitness[i] = avgEval / evaluation[i];
-        totalFitness += fitness[i];
-        cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
+        // cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
     }
-    cout << "Fitness sum: " << totalFitness << endl;
     return fitness;
 }
 
@@ -127,22 +124,27 @@ double *calculateNormalizedFitness(const double *evaluation, const int populatio
     return fitness;
 }
 
-int pickOne(const double *fitness) {
-    // Get rnd number 0..1
-    double r = (float) rand() / RAND_MAX;
-    // cout << "random number: " << r << endl;
+int pickOne(const double *fitness, std::mt19937 & gen, std::uniform_real_distribution<> dis) {
+    // Get distribution in 0...fitnessSum
+    double r = dis(gen);
     int i = 0;
-    // sum(fitness) is == 1 so I don't need to check if I go out of bound
+    // sum(fitness) is >= r so I don't need to check if I go out of bound
     while (r > 0) {
-        // cout << "Fitness value: " << fitness[i] << endl;
         r -= fitness[i];
         i++;
     }
     return --i;
 }
 
-int **selection(double *fitness, int **population, const int populationSize) {
+int **selection(double *fitness, int **population, const int populationSize, unsigned int seed) {
     int **selection = new int *[populationSize];
+    double fitnessSum = 0;
+    for (int i = 0; i < populationSize; ++i) {
+        fitnessSum += fitness[i];
+    }
+    std::mt19937 gen(seed); //Standard mersenne_twister_engine
+    std::uniform_real_distribution<> dis(0, fitnessSum);
+
     // int timesPicked[populationSize];
     /*
     for (int i = 0; i < populationSize; ++i) {
@@ -151,7 +153,7 @@ int **selection(double *fitness, int **population, const int populationSize) {
      */
     int pickedIndex;
     for (int i = 0; i < populationSize; ++i) {
-        pickedIndex = pickOne(fitness);
+        pickedIndex = pickOne(fitness, gen, dis);
         // timesPicked[pickedIndex]++;
         selection[i] = population[pickedIndex];
     }
@@ -279,7 +281,7 @@ void mutate(int **population, const int populationSize, const int nCities, const
 
 int main() {
     const int nCities = 10;
-    int const populationSize = 50;
+    int const populationSize = 300;
     const double min = 0;
     const double max = 100;
     const unsigned int seed = 35412;
@@ -327,8 +329,10 @@ int main() {
 
     double bestGlobalFitness = 0;
     double bestLocalFitness;
+    int globalBestIndex;
+    int localBestIndex;
 
-//    while (true) {
+  while (true) {
 
     // Let's calculate the fitness
 
@@ -342,11 +346,16 @@ int main() {
     for (int i = 0; i < populationSize; ++i) {
         if (fitness[i] > bestLocalFitness) {
             bestLocalFitness = fitness[i];
+            localBestIndex = i;
         }
     }
+
     if (bestLocalFitness > bestGlobalFitness) {
         bestGlobalFitness = bestLocalFitness;
-        cout << "new best fitness score: " << bestGlobalFitness << endl;
+        globalBestIndex = localBestIndex;
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+        cout << "new best fitness score: " << bestGlobalFitness << " with evaluation of " << evaluation[globalBestIndex] << " found at " << std::ctime(&now_time) << endl;
     }
 
     // It's time for reproduction!
@@ -355,7 +364,7 @@ int main() {
 
     // Select populationSize elements so that the higher the fitness the higher the probability to be selected
 
-    int **intermediatePopulation = selection(fitness, population, populationSize);
+    int **intermediatePopulation = selection(fitness, population, populationSize, seed);
 
     // printPopulation(intermediatePopulation, populationSize, nCities);
 
@@ -374,7 +383,7 @@ int main() {
     }
     delete[] population;
     population = nextGen;
-//    }
+  }
 }
 
 #pragma clang diagnostic pop
