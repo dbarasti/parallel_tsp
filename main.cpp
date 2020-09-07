@@ -50,8 +50,6 @@ public:
     }
 };
 
-void mutate(int **population, const int populationSize, const int nCities);
-
 Point *generateCities(const int nCities, double min, double max, unsigned int seed) {
     auto cities = new Point[nCities];
     std::mt19937 gen(seed); //Standard mersenne_twister_engine seeded with rd()
@@ -88,22 +86,44 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
         }
         // Evaluation score of i-th chromosome
         evaluation[i] = totalDistanceOfChromosome;
-        // cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
+        cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
     }
     return evaluation;
 }
 
 double *calculateFitness(const double *evaluation, const int populationSize) {
     auto fitness = new double[populationSize];
+    double totalEvaluation = 0;
+    for (int i = 0; i < populationSize; ++i) {
+        // fitness[i] = 1 / evaluation[i];
+        totalEvaluation += evaluation[i];
+    }
+    double avgEval = totalEvaluation / populationSize;
+    double totalFitness = 0;
+    for (int i = 0; i < populationSize; ++i) {
+        fitness[i] = avgEval / evaluation[i];
+        totalFitness += fitness[i];
+        cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
+    }
+    cout << "Fitness sum: " << totalFitness << endl;
+    return fitness;
+}
+
+
+double *calculateNormalizedFitness(const double *evaluation, const int populationSize) {
+    auto fitness = new double[populationSize];
     double totalInverse = 0;
     for (int i = 0; i < populationSize; ++i) {
         fitness[i] = 1 / evaluation[i];
         totalInverse += fitness[i];
     }
+    double totalFitness = 0;
     for (int i = 0; i < populationSize; ++i) {
         fitness[i] = fitness[i] / totalInverse;
-        // cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
+        totalFitness += fitness[i];
+        cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
     }
+    cout << "Fitness sum: " << totalFitness << endl;
     return fitness;
 }
 
@@ -259,11 +279,12 @@ void mutate(int **population, const int populationSize, const int nCities, const
 
 int main() {
     const int nCities = 10;
-    int const populationSize = 300;
+    int const populationSize = 50;
     const double min = 0;
     const double max = 100;
     const unsigned int seed = 35412;
     const double mutationProbability = 0.01;
+    srand(seed);
 
     //generate the cities in the array cities
     Point *cities = generateCities(nCities, min, max, seed);
@@ -293,7 +314,7 @@ int main() {
 
     for (int i = 1; i < populationSize; ++i) {
         // Every time I shuffle the previous chromosome
-        int *a = shuffle_array(population[i - 1], nCities, seed);
+        int *a = shuffle_array(population[i - 1], nCities, 0);
         for (int j = 0; j < nCities; ++j) {
             population[i][j] = a[j];
         }
@@ -307,53 +328,53 @@ int main() {
     double bestGlobalFitness = 0;
     double bestLocalFitness;
 
-    while (true) {
+//    while (true) {
 
-        // Let's calculate the fitness
+    // Let's calculate the fitness
 
-        double *evaluation = evaluate(population, cities, populationSize, nCities);
+    double *evaluation = evaluate(population, cities, populationSize, nCities);
 
-        // Now calculate fitness (a percentage) based on the evaluation
+    // Now calculate fitness (a percentage) based on the evaluation
 
-        double *fitness = calculateFitness(evaluation, populationSize);
+    double *fitness = calculateFitness(evaluation, populationSize);
 
-        bestLocalFitness = 0;
-        for (int i = 0; i < populationSize; ++i) {
-            if (fitness[i] > bestLocalFitness) {
-                bestLocalFitness = fitness[i];
-            }
+    bestLocalFitness = 0;
+    for (int i = 0; i < populationSize; ++i) {
+        if (fitness[i] > bestLocalFitness) {
+            bestLocalFitness = fitness[i];
         }
-        if (bestLocalFitness > bestGlobalFitness) {
-            bestGlobalFitness = bestLocalFitness;
-            cout << "new best fitness score: " << bestGlobalFitness << endl;
-        }
-
-        // It's time for reproduction!
-
-        // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
-
-        // Select populationSize elements so that the higher the fitness the higher the probability to be selected
-
-        int **intermediatePopulation = selection(fitness, population, populationSize);
-
-        // printPopulation(intermediatePopulation, populationSize, nCities);
-
-        // With the intermediate population I can now crossover the elements
-        int **nextGen = crossover(intermediatePopulation, populationSize, nCities);
-
-        mutate(nextGen, populationSize, nCities, mutationProbability);
-
-        // printPopulation(nextGen, populationSize, nCities);
-
-        delete[] intermediatePopulation;
-        delete[] fitness;
-        delete[] evaluation;
-        for (int k = 0; k < populationSize; ++k) {
-            delete[] population[k];
-        }
-        delete[] population;
-        population = nextGen;
     }
+    if (bestLocalFitness > bestGlobalFitness) {
+        bestGlobalFitness = bestLocalFitness;
+        cout << "new best fitness score: " << bestGlobalFitness << endl;
+    }
+
+    // It's time for reproduction!
+
+    // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
+
+    // Select populationSize elements so that the higher the fitness the higher the probability to be selected
+
+    int **intermediatePopulation = selection(fitness, population, populationSize);
+
+    // printPopulation(intermediatePopulation, populationSize, nCities);
+
+    // With the intermediate population I can now crossover the elements
+    int **nextGen = crossover(intermediatePopulation, populationSize, nCities);
+
+    mutate(nextGen, populationSize, nCities, mutationProbability);
+
+    // printPopulation(nextGen, populationSize, nCities);
+
+    delete[] intermediatePopulation;
+    delete[] fitness;
+    delete[] evaluation;
+    for (int k = 0; k < populationSize; ++k) {
+        delete[] population[k];
+    }
+    delete[] population;
+    population = nextGen;
+//    }
 }
 
 #pragma clang diagnostic pop
