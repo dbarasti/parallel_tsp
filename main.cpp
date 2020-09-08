@@ -64,6 +64,11 @@ Point *generateCities(const int nCities, double min, double max, unsigned int se
     return cities;
 }
 
+struct Eval {
+    int dstMatrixIndex;
+    double score;
+};
+
 /**
  * returns a shuffled array starting from arr
  * */
@@ -100,7 +105,7 @@ double *calculateFitness(const double *evaluation, const int populationSize) {
         fitness[i] = 1 / (pow(evaluation[i], 8) + 1);
         totalInverse += fitness[i];
     }
-    double totalFitness = 0;
+//    double totalFitness = 0;
     for (int i = 0; i < populationSize; ++i) {
         fitness[i] = fitness[i] / totalInverse;
 //        totalFitness += fitness[i];
@@ -262,12 +267,63 @@ void mutate(int **population, const int populationSize, const int nCities, const
     }
 }
 
+bool compareEvaluations(Eval a, Eval b) {
+    return a.score < b.score;
+}
+
+double findBestDistance(const double *distances, int n) {
+    double bestSoFar = MAXFLOAT;
+    for (int i = 0; i < n; ++i) {
+        if (distances[i] < bestSoFar) {
+            bestSoFar = distances[i];
+        }
+    }
+    return bestSoFar;
+}
+
+double calculateLowerBound(int **population, Point *cities, const int populationSize, const int nCities) {
+    auto evaluation = new Eval[populationSize];
+    // Matrix initialization
+    auto dstMatrix = new double *[populationSize];
+    for (int i = 0; i < populationSize; ++i) {
+        dstMatrix[i] = new double[nCities - 1];
+    }
+    double totalDistanceOfChromosome;
+    double dst;
+    double lowerBound = 0;
+    for (int i = 0; i < populationSize; ++i) {
+        totalDistanceOfChromosome = 0;
+        for (int j = 0; j < nCities - 1; ++j) {
+            dst = cities[population[i][j]].dist(cities[population[i][j + 1]]);
+            dstMatrix[i][j] = dst;
+            totalDistanceOfChromosome += dst;
+        }
+        // Evaluation score of i-th chromosome
+        evaluation[i].score = totalDistanceOfChromosome;
+        evaluation[i].dstMatrixIndex = i;
+
+        // cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
+    }
+
+    // Sort evaluation by score
+    std::sort(evaluation, evaluation + populationSize, compareEvaluations);
+
+    // pick ncities-1 distances, one for each of the first ncities-1 dstMatrix rows. Pick every time the smallest of the row
+    for (int i = 0; i < nCities - 1; ++i) {
+        double bestDistance = findBestDistance(dstMatrix[evaluation[i].dstMatrixIndex], nCities - 1);
+        lowerBound += bestDistance;
+    }
+    delete[] evaluation;
+    delete[] dstMatrix;
+    return lowerBound;
+}
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 int main() {
-    const int nCities = 10;
-    int const populationSize = 15;
+    const int nCities = 15;
+    int const populationSize = 300;
     const double min = 0;
     const double max = 100;
     const unsigned int seed = 35412;
@@ -309,7 +365,7 @@ int main() {
         // delete[] a;
     }
 
-    printPopulation(population, populationSize, nCities);
+    // printPopulation(population, populationSize, nCities);
 
     // Now we have an initial population ready
 
@@ -318,59 +374,67 @@ int main() {
     int globalBestIndex;
     int localBestIndex;
 
-  while (true) {
+    double lb = calculateLowerBound(population, cities, populationSize, nCities);
+    cout << "Lower bound: " << lb << endl;
 
-    // Let's calculate the fitness
 
-    double *evaluation = evaluate(population, cities, populationSize, nCities);
+    while (true) {
 
-    // Now calculate fitness (a percentage) based on the evaluation
+        // Let's calculate the evaluation score
 
-    double *fitness = calculateFitness(evaluation, populationSize);
+        double *evaluation = evaluate(population, cities, populationSize, nCities);
 
-    bestLocalFitness = 0;
-    for (int i = 0; i < populationSize; ++i) {
-        if (fitness[i] > bestLocalFitness) {
-            bestLocalFitness = fitness[i];
-            localBestIndex = i;
+        // Now calculate fitness (a percentage) based on the evaluation
+
+        double *fitness = calculateFitness(evaluation, populationSize);
+
+        bestLocalFitness = 0;
+        for (int i = 0; i < populationSize; ++i) {
+            if (fitness[i] > bestLocalFitness) {
+                bestLocalFitness = fitness[i];
+                localBestIndex = i;
+            }
         }
+
+        if (bestLocalFitness > bestGlobalFitness) {
+            bestGlobalFitness = bestLocalFitness;
+            globalBestIndex = localBestIndex;
+            auto now = std::chrono::system_clock::now();
+            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+            cout << "new best fitness score: " << bestGlobalFitness << " with evaluation of "
+                 << evaluation[globalBestIndex]
+                 << " found at " << std::ctime(&now_time) << endl;
+        }
+
+        // It's time for reproduction!
+
+        // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
+
+        // Select populationSize elements so that the higher the fitness the higher the probability to be selected
+
+        int **intermediatePopulation = selection(fitness, population, populationSize, seed);
+
+        // printPopulation(intermediatePopulation, populationSize, nCities);
+
+        // With the intermediate population I can now crossover the elements
+        int **nextGen = crossover(intermediatePopulation, populationSize, nCities);
+
+        mutate(nextGen, populationSize, nCities, mutationProbability);
+
+        // printPopulation(nextGen, populationSize, nCities);
+
+        delete[] intermediatePopulation;
+        delete[] fitness;
+        delete[] evaluation;
+        for (int k = 0; k < populationSize; ++k) {
+            delete[] population[k];
+        }
+        delete[] population;
+        population = nextGen;
     }
 
-    if (bestLocalFitness > bestGlobalFitness) {
-        bestGlobalFitness = bestLocalFitness;
-        globalBestIndex = localBestIndex;
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-        cout << "new best fitness score: " << bestGlobalFitness << " with evaluation of " << evaluation[globalBestIndex]
-             << " found at " << std::ctime(&now_time) << endl;
-    }
-
-    // It's time for reproduction!
-
-    // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
-
-    // Select populationSize elements so that the higher the fitness the higher the probability to be selected
-
-    int **intermediatePopulation = selection(fitness, population, populationSize, seed);
-
-    // printPopulation(intermediatePopulation, populationSize, nCities);
-
-    // With the intermediate population I can now crossover the elements
-    int **nextGen = crossover(intermediatePopulation, populationSize, nCities);
-
-    mutate(nextGen, populationSize, nCities, mutationProbability);
-
-    // printPopulation(nextGen, populationSize, nCities);
-
-    delete[] intermediatePopulation;
-    delete[] fitness;
-    delete[] evaluation;
-    for (int k = 0; k < populationSize; ++k) {
-        delete[] population[k];
-    }
-    delete[] population;
-    population = nextGen;
-  }
+    delete[] cities;
 }
+
 
 #pragma clang diagnostic pop
