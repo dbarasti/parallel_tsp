@@ -98,30 +98,23 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
     return evaluation;
 }
 
-double *calculateFitness(const double *evaluation, const int populationSize) {
+double *calculateFitness(const double *evaluation, const int populationSize, const double lowerBound) {
     auto fitness = new double[populationSize];
-    double totalInverse = 0;
     for (int i = 0; i < populationSize; ++i) {
-        fitness[i] = 1 / (pow(evaluation[i], 8) + 1);
-        totalInverse += fitness[i];
+        fitness[i] = 1 / (evaluation[i] / lowerBound);
     }
-//    double totalFitness = 0;
-    for (int i = 0; i < populationSize; ++i) {
-        fitness[i] = fitness[i] / totalInverse;
-//        totalFitness += fitness[i];
-//        cout << "Fitness for chromosome " << i << ": " << fitness[i] << endl;
-    }
-//    cout << "Fitness sum: " << totalFitness << endl;
     return fitness;
 }
 
 int pickOne(const double *fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis) {
     // Get distribution in 0...fitnessSum
     double r = dis(gen);
+    // cout << "Random value: " << r << endl;
     int i = 0;
     // sum(fitness) is >= r so I don't need to check if I go out of bound
     while (r > 0) {
         r -= fitness[i];
+    //    cout << "Fitness: " << fitness[i] << endl;
         i++;
     }
     return --i;
@@ -129,12 +122,12 @@ int pickOne(const double *fitness, std::mt19937 &gen, std::uniform_real_distribu
 
 int **selection(double *fitness, int **population, const int populationSize, unsigned int seed) {
     int **selection = new int *[populationSize];
-//    double fitnessSum = 0;
-//    for (int i = 0; i < populationSize; ++i) {
-//        fitnessSum += fitness[i];
-//    }
+    double fitnessSum = 0;
+    for (int i = 0; i < populationSize; ++i) {
+        fitnessSum += fitness[i];
+    }
     std::mt19937 gen(seed); //Standard mersenne_twister_engine
-    std::uniform_real_distribution<> dis(0, 1);
+    std::uniform_real_distribution<> dis(0, fitnessSum);
 
     // int timesPicked[populationSize];
     /*
@@ -323,7 +316,7 @@ double calculateLowerBound(int **population, Point *cities, const int population
 
 int main() {
     const int nCities = 15;
-    int const populationSize = 300;
+    int const populationSize = 15;
     const double min = 0;
     const double max = 100;
     const unsigned int seed = 35412;
@@ -386,7 +379,7 @@ int main() {
 
         // Now calculate fitness (a percentage) based on the evaluation
 
-        double *fitness = calculateFitness(evaluation, populationSize);
+        double *fitness = calculateFitness(evaluation, populationSize, lb);
 
         bestLocalFitness = 0;
         for (int i = 0; i < populationSize; ++i) {
