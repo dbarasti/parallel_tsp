@@ -3,4 +3,6 @@ project(tsp_ga)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(tsp_ga main.cpp)
+add_executable(tsp_ga main.cpp Point.h)
+
+add_subdirectory(Google_tests)
