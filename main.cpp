@@ -1,55 +1,18 @@
+#define TEST false
+
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <random>
-#include <chrono>
 #include <ctime>
+#include "Point.h"
+#include <chrono>
 
 using namespace std;
 
-// Class to represent points.
-class Point {
-private:
-    double xval, yval;
-public:
-    // Constructor uses default arguments to allow calling with zero, one,
-    // or two values.
-    Point(double x = 0.0, double y = 0.0) {
-        xval = x;
-        yval = y;
-    }
-
-    // Extractors.
-    double x() { return xval; }
-
-    double y() { return yval; }
-
-    // Distance to another point.  Pythagorean thm.
-    double dist(Point other) {
-        double xd = xval - other.xval;
-        double yd = yval - other.yval;
-        return sqrt(xd * xd + yd * yd);
-    }
-
-    // Add or subtract two points.
-    Point add(Point b) {
-        return Point(xval + b.xval, yval + b.yval);
-    }
-
-    Point sub(Point b) {
-        return Point(xval - b.xval, yval - b.yval);
-    }
-
-    // Move the existing point.
-    void move(double a, double b) {
-        xval += a;
-        yval += b;
-    }
-
-    // Print the point on the stream.  The class ostream is a base class
-    // for output streams of various types.
-    void print(ostream &strm) {
-        strm << "(" << xval << "," << yval << ")";
-    }
+struct Eval {
+    int dstMatrixIndex;
+    double score;
 };
 
 Point *generateCities(const int nCities, double min, double max, unsigned int seed) {
@@ -63,11 +26,6 @@ Point *generateCities(const int nCities, double min, double max, unsigned int se
     }
     return cities;
 }
-
-struct Eval {
-    int dstMatrixIndex;
-    double score;
-};
 
 /**
  * returns a shuffled array starting from arr
@@ -84,6 +42,9 @@ int *shuffle_array(const int arr[], int n, const unsigned int seed) {
 }
 
 double *evaluate(int **population, Point *cities, const int populationSize, const int nCities) {
+#if TEST == true
+    auto start = std::chrono::system_clock::now();
+#endif
     auto evaluation = new double[populationSize];
     double totalDistanceOfChromosome;
     for (int i = 0; i < populationSize; ++i) {
@@ -95,14 +56,27 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
         evaluation[i] = totalDistanceOfChromosome;
         // cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
     }
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Evaluation - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
     return evaluation;
 }
 
 double *calculateFitness(const double *evaluation, const int populationSize, const double lowerBound) {
+#if TEST == true
+    auto start = std::chrono::system_clock::now();
+#endif
     auto fitness = new double[populationSize];
     for (int i = 0; i < populationSize; ++i) {
-        fitness[i] = 1 / (evaluation[i] / lowerBound);
+        fitness[i] = lowerBound / evaluation[i];
     }
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Fitness - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
     return fitness;
 }
 
@@ -114,13 +88,17 @@ int pickOne(const double *fitness, std::mt19937 &gen, std::uniform_real_distribu
     // sum(fitness) is >= r so I don't need to check if I go out of bound
     while (r > 0) {
         r -= fitness[i];
-    //    cout << "Fitness: " << fitness[i] << endl;
+        //    cout << "Fitness: " << fitness[i] << endl;
         i++;
     }
     return --i;
 }
 
 int **selection(double *fitness, int **population, const int populationSize, unsigned int seed) {
+#if TEST == true
+    auto start = std::chrono::system_clock::now();
+#endif
+
     int **selection = new int *[populationSize];
     double fitnessSum = 0;
     for (int i = 0; i < populationSize; ++i) {
@@ -146,6 +124,11 @@ int **selection(double *fitness, int **population, const int populationSize, uns
         cout << "Population " << j << "-th picked " << timesPicked[j] << " times" << endl;
     }
      */
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Selection - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
     return selection;
 }
 
@@ -203,9 +186,18 @@ int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
     return combination;
 }
 
-int **crossover(int **population, const int populationSize, const int nCities) {
+int **crossover(int **population, const int populationSize, const int nCities, const double crossoverRate) {
+#if TEST == true
+    auto start = std::chrono::system_clock::now();
+#endif
     int **selection = new int *[populationSize];
+    double r;
     for (int i = 0; i < populationSize; ++i) {
+        r = (double) rand() / RAND_MAX;
+        if (r >= crossoverRate) {
+            selection[i] = population[i];
+            continue;
+        }
         int indexA = rand() % populationSize;
         int indexB = rand() % populationSize;
         int *mateA = population[indexA];
@@ -225,6 +217,11 @@ int **crossover(int **population, const int populationSize, const int nCities) {
         */
         selection[i] = recombine(mateA, mateB, nCities);
     }
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Crossover - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
     return selection;
 }
 
@@ -249,7 +246,11 @@ void swapTwo(int *arr, const int nEl) {
     arr[indexB] = aux;
 }
 
+// swaps two elements inside each chromosome with certain probability
 void mutate(int **population, const int populationSize, const int nCities, const double probability) {
+#if TEST == true
+    auto start = std::chrono::system_clock::now();
+#endif
     int *populationToMutate;
     for (int i = 0; i < populationSize; ++i) {
         populationToMutate = population[i];
@@ -258,6 +259,11 @@ void mutate(int **population, const int populationSize, const int nCities, const
             swapTwo(populationToMutate, nCities);
         }
     }
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Mutation - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
 }
 
 bool compareEvaluations(Eval a, Eval b) {
@@ -275,6 +281,9 @@ double findBestDistance(const double *distances, int n) {
 }
 
 double calculateLowerBound(int **population, Point *cities, const int populationSize, const int nCities) {
+#if TEST == true
+    auto start = std::chrono::system_clock::now();
+#endif
     auto evaluation = new Eval[populationSize];
     // Matrix initialization
     auto dstMatrix = new double *[populationSize];
@@ -308,30 +317,32 @@ double calculateLowerBound(int **population, Point *cities, const int population
     }
     delete[] evaluation;
     delete[] dstMatrix;
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Lower bound calculation - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
     return lowerBound;
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
 
-int main() {
-    const int nCities = 15;
-    int const populationSize = 15;
-    const double min = 0;
-    const double max = 100;
-    const unsigned int seed = 35412;
-    const double mutationProbability = 0.01;
+void run(const int nCities, const int populationSize, const int generations, const double min, const double max, const unsigned int seed, const double mutationProbability){
     srand(seed);
+    ofstream outFile;
+    outFile.open ("data.txt");
 
+#if TEST == true
+    // start timer to record the initial population generation
+    auto start = std::chrono::system_clock::now();
+#endif
     //generate the cities in the array cities
     Point *cities = generateCities(nCities, min, max, seed);
-    for (int i = 0; i < nCities; ++i) {
+    /* for (int i = 0; i < nCities; ++i) {
         cities[i].print(cout);
     }
-    cout << endl;
+    cout << endl; */
 
-    //Defining the matrix where I store population of orders:
-
+    // Defining the matrix where I store population of orders:
     int **population;
     population = new int *[populationSize];
     for (int i = 0; i < populationSize; i++)
@@ -348,7 +359,6 @@ int main() {
     }
 
     // First chromosome has been populated. Now let's create the rest of the initial population
-
     for (int i = 1; i < populationSize; ++i) {
         // Every time I shuffle the previous chromosome
         int *a = shuffle_array(population[i - 1], nCities, 0);
@@ -360,44 +370,52 @@ int main() {
 
     // printPopulation(population, populationSize, nCities);
 
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Initial population generation - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
     // Now we have an initial population ready
 
     double bestGlobalFitness = 0;
     double bestLocalFitness;
+    double bestLocalEval;
+    double avgEval;
     int globalBestIndex;
     int localBestIndex;
 
-    double lb = calculateLowerBound(population, cities, populationSize, nCities);
-    cout << "Lower bound: " << lb << endl;
 
 
-    while (true) {
+
+    for (int iter = 0; iter < generations; ++iter) {
+
+        double lb = calculateLowerBound(population, cities, populationSize, nCities);
+        // cout << "Lower bound: " << lb << endl;
 
         // Let's calculate the evaluation score
-
         double *evaluation = evaluate(population, cities, populationSize, nCities);
 
         // Now calculate fitness (a percentage) based on the evaluation
 
         double *fitness = calculateFitness(evaluation, populationSize, lb);
 
-        bestLocalFitness = 0;
+        avgEval = 0;
+        bestLocalEval = 0;
         for (int i = 0; i < populationSize; ++i) {
-            if (fitness[i] > bestLocalFitness) {
-                bestLocalFitness = fitness[i];
-                localBestIndex = i;
+            avgEval += evaluation[i];
+            if (evaluation[i] > bestLocalEval) {
+                bestLocalEval = evaluation[i];
+                //localBestIndex = i;
             }
         }
-
+        avgEval = avgEval / populationSize;
+        /*
         if (bestLocalFitness > bestGlobalFitness) {
             bestGlobalFitness = bestLocalFitness;
             globalBestIndex = localBestIndex;
-            auto now = std::chrono::system_clock::now();
-            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-            cout << "new best fitness score: " << bestGlobalFitness << " with evaluation of "
-                 << evaluation[globalBestIndex]
-                 << " found at " << std::ctime(&now_time) << endl;
         }
+         */
+        outFile << iter << "\t" << avgEval << endl;
 
         // It's time for reproduction!
 
@@ -405,12 +423,18 @@ int main() {
 
         // Select populationSize elements so that the higher the fitness the higher the probability to be selected
 
+
         int **intermediatePopulation = selection(fitness, population, populationSize, seed);
 
         // printPopulation(intermediatePopulation, populationSize, nCities);
 
         // With the intermediate population I can now crossover the elements
-        int **nextGen = crossover(intermediatePopulation, populationSize, nCities);
+
+
+        // printPopulation(intermediatePopulation, populationSize, nCities);
+        double crossoverRate = 0.1;
+        int **nextGen = crossover(intermediatePopulation, populationSize, nCities, crossoverRate);
+        // printPopulation(nextGen, populationSize, nCities);
 
         mutate(nextGen, populationSize, nCities, mutationProbability);
 
@@ -420,13 +444,40 @@ int main() {
         delete[] fitness;
         delete[] evaluation;
         for (int k = 0; k < populationSize; ++k) {
-            delete[] population[k];
+            // delete[] population[k];
         }
         delete[] population;
         population = nextGen;
     }
 
     delete[] cities;
+    outFile.close();
+}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
+
+int main(int argc, char *argv[]) {
+    if (argc < 5) {
+        std::cout << "Usage is " << argv[0]
+                  << " nCities populationSize generations mutationProbability [seed]"
+                  << std::endl;
+        return (-1);
+    }
+
+    const int nCities = std::atoi(argv[1]);
+    int const populationSize = std::atoi(argv[2]);
+    int const generations = std::atoi(argv[3]);
+    const double mutationProbability = std::atof(argv[4]);
+    int seed = 35412;
+    const double min = 0;
+    const double max = 100;
+
+    if (argv[5]) {
+        seed = std::atoi(argv[5]);
+    }
+
+    run(nCities, populationSize, generations, min, max, seed, mutationProbability);
 }
 
 
