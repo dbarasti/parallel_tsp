@@ -1,4 +1,4 @@
-#define TEST false
+#define TEST true
 
 #include <iostream>
 #include <fstream>
@@ -28,7 +28,7 @@ Point *generateCities(const int nCities, double min, double max, unsigned int se
 }
 
 /**
- * returns a shuffled array starting from arr
+ * Returns a shuffled array starting from arr
  * */
 int *shuffle_array(const int arr[], int n, const unsigned int seed) {
     int *copy = new int[n];
@@ -41,6 +41,9 @@ int *shuffle_array(const int arr[], int n, const unsigned int seed) {
     return copy;
 }
 
+/*
+ * Computes the evaluation (total trip distance) for each chromosome
+ * */
 double *evaluate(int **population, Point *cities, const int populationSize, const int nCities) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
@@ -54,7 +57,6 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
         }
         // Evaluation score of i-th chromosome
         evaluation[i] = totalDistanceOfChromosome;
-        // cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
     }
 #if TEST == true
     auto end = std::chrono::system_clock::now();
@@ -64,6 +66,9 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
     return evaluation;
 }
 
+/*
+ * Computes fitness value for each chromosome, using the lowerBound estimation
+ * */
 double *calculateFitness(const double *evaluation, const int populationSize, const double lowerBound) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
@@ -83,12 +88,10 @@ double *calculateFitness(const double *evaluation, const int populationSize, con
 int pickOne(const double *fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis) {
     // Get distribution in 0...fitnessSum
     double r = dis(gen);
-    // cout << "Random value: " << r << endl;
     int i = 0;
-    // sum(fitness) is >= r so I don't need to check if I go out of bound
+    // sum(fitness) >= r so I don't need to check if I go out of bound
     while (r > 0) {
         r -= fitness[i];
-        //    cout << "Fitness: " << fitness[i] << endl;
         i++;
     }
     return --i;
@@ -107,23 +110,13 @@ int **selection(double *fitness, int **population, const int populationSize, uns
     std::mt19937 gen(seed); //Standard mersenne_twister_engine
     std::uniform_real_distribution<> dis(0, fitnessSum);
 
-    // int timesPicked[populationSize];
-    /*
-    for (int i = 0; i < populationSize; ++i) {
-        timesPicked[i] = 0;
-    }
-     */
     int pickedIndex;
     for (int i = 0; i < populationSize; ++i) {
         pickedIndex = pickOne(fitness, gen, dis);
         // timesPicked[pickedIndex]++;
         selection[i] = population[pickedIndex];
     }
-    /*
-    for (int j = 0; j < populationSize; ++j) {
-        cout << "Population " << j << "-th picked " << timesPicked[j] << " times" << endl;
-    }
-     */
+
 #if TEST == true
     auto end = std::chrono::system_clock::now();
     std::cout << "Selection - sequential time: "
@@ -153,9 +146,6 @@ int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
         indexB = aux;
     }
 
-    // cout << "IndexA: " << indexA << " ";
-    // cout << "IndexB: " << indexB << " " << endl;
-
     // First, put chromosomeA[indexA..indexB (included)] into combination[0..indexB-indexA]
     int i;
     int chromosomeIndex = indexA;
@@ -177,12 +167,6 @@ int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
         chromosomeIndex++;
     }
 
-    /*cout << "Combination: ";
-    for (int j = 0; j < nEl; ++j) {
-        cout << combination[j] << " ";
-    }
-    cout << endl;*/
-
     return combination;
 }
 
@@ -202,19 +186,7 @@ int **crossover(int **population, const int populationSize, const int nCities, c
         int indexB = rand() % populationSize;
         int *mateA = population[indexA];
         int *mateB = population[indexB];
-        /*
-        cout << "Mate A: ";
-        for (int j = 0; j < nCities; ++j) {
-            cout << mateA[j] << " ";
-        }
-        cout << endl;
 
-        cout << "Mate B: ";
-        for (int j = 0; j < nCities; ++j) {
-            cout << mateB[j] << " ";
-        }
-        cout << endl;
-        */
         selection[i] = recombine(mateA, mateB, nCities);
     }
 #if TEST == true
@@ -235,6 +207,9 @@ void printPopulation(int *const *intermediatePopulation, const int populationSiz
     }
 }
 
+/*
+ * Swaps two random elements of array arr
+ * */
 void swapTwo(int *arr, const int nEl) {
     int indexA = rand() % nEl;
     int indexB = rand() % nEl;
@@ -246,7 +221,9 @@ void swapTwo(int *arr, const int nEl) {
     arr[indexB] = aux;
 }
 
-// swaps two elements inside each chromosome with certain probability
+/*
+ * Swaps two elements inside each chromosome with certain probability
+ * */
 void mutate(int **population, const int populationSize, const int nCities, const double probability) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
@@ -303,8 +280,6 @@ double calculateLowerBound(int **population, Point *cities, const int population
         // Evaluation score of i-th chromosome
         evaluation[i].score = totalDistanceOfChromosome;
         evaluation[i].dstMatrixIndex = i;
-
-        // cout << "Total distance for chromosome " << i << ": " << totalDistanceOfChromosome << endl;
     }
 
     // Sort evaluation by score
@@ -316,6 +291,9 @@ double calculateLowerBound(int **population, Point *cities, const int population
         lowerBound += bestDistance;
     }
     delete[] evaluation;
+    for (int k = 0; k < populationSize; ++k) {
+        delete[] dstMatrix[k];
+    }
     delete[] dstMatrix;
 #if TEST == true
     auto end = std::chrono::system_clock::now();
@@ -326,7 +304,7 @@ double calculateLowerBound(int **population, Point *cities, const int population
 }
 
 
-void run(const int nCities, const int populationSize, const int generations, const double min, const double max, const unsigned int seed, const double mutationProbability){
+void run(const int nCities, const int populationSize, const int generations, const double min, const double max, const unsigned int seed, const double mutationProbability, const double crossoverProbability){
     srand(seed);
     ofstream outFile;
     outFile.open ("data.txt");
@@ -337,10 +315,6 @@ void run(const int nCities, const int populationSize, const int generations, con
 #endif
     //generate the cities in the array cities
     Point *cities = generateCities(nCities, min, max, seed);
-    /* for (int i = 0; i < nCities; ++i) {
-        cities[i].print(cout);
-    }
-    cout << endl; */
 
     // Defining the matrix where I store population of orders:
     int **population;
@@ -365,10 +339,8 @@ void run(const int nCities, const int populationSize, const int generations, con
         for (int j = 0; j < nCities; ++j) {
             population[i][j] = a[j];
         }
-        // delete[] a;
+        delete[] a;
     }
-
-    // printPopulation(population, populationSize, nCities);
 
 #if TEST == true
     auto end = std::chrono::system_clock::now();
@@ -377,20 +349,12 @@ void run(const int nCities, const int populationSize, const int generations, con
 #endif
     // Now we have an initial population ready
 
-    double bestGlobalFitness = 0;
-    double bestLocalFitness;
     double bestLocalEval;
     double avgEval;
-    int globalBestIndex;
-    int localBestIndex;
-
-
-
 
     for (int iter = 0; iter < generations; ++iter) {
 
         double lb = calculateLowerBound(population, cities, populationSize, nCities);
-        // cout << "Lower bound: " << lb << endl;
 
         // Let's calculate the evaluation score
         double *evaluation = evaluate(population, cities, populationSize, nCities);
@@ -405,16 +369,10 @@ void run(const int nCities, const int populationSize, const int generations, con
             avgEval += evaluation[i];
             if (evaluation[i] > bestLocalEval) {
                 bestLocalEval = evaluation[i];
-                //localBestIndex = i;
             }
         }
         avgEval = avgEval / populationSize;
-        /*
-        if (bestLocalFitness > bestGlobalFitness) {
-            bestGlobalFitness = bestLocalFitness;
-            globalBestIndex = localBestIndex;
-        }
-         */
+
         outFile << iter << "\t" << avgEval << endl;
 
         // It's time for reproduction!
@@ -432,23 +390,18 @@ void run(const int nCities, const int populationSize, const int generations, con
 
 
         // printPopulation(intermediatePopulation, populationSize, nCities);
-        double crossoverRate = 0.1;
-        int **nextGen = crossover(intermediatePopulation, populationSize, nCities, crossoverRate);
-        // printPopulation(nextGen, populationSize, nCities);
+        int **nextGen = crossover(intermediatePopulation, populationSize, nCities, crossoverProbability);
 
         mutate(nextGen, populationSize, nCities, mutationProbability);
-
-        // printPopulation(nextGen, populationSize, nCities);
 
         delete[] intermediatePopulation;
         delete[] fitness;
         delete[] evaluation;
-        for (int k = 0; k < populationSize; ++k) {
-            // delete[] population[k];
-        }
         delete[] population;
         population = nextGen;
+
     }
+    delete[] population;
 
     delete[] cities;
     outFile.close();
@@ -458,9 +411,9 @@ void run(const int nCities, const int populationSize, const int generations, con
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 int main(int argc, char *argv[]) {
-    if (argc < 5) {
+    if (argc < 6) {
         std::cout << "Usage is " << argv[0]
-                  << " nCities populationSize generations mutationProbability [seed]"
+                  << " nCities populationSize generations mutationProbability crossoverProbability [seed]"
                   << std::endl;
         return (-1);
     }
@@ -469,15 +422,16 @@ int main(int argc, char *argv[]) {
     int const populationSize = std::atoi(argv[2]);
     int const generations = std::atoi(argv[3]);
     const double mutationProbability = std::atof(argv[4]);
+    const double crossoverProbability = std::atof(argv[5]);
     int seed = 35412;
     const double min = 0;
     const double max = 100;
 
-    if (argv[5]) {
-        seed = std::atoi(argv[5]);
+    if (argv[6]) {
+        seed = std::atoi(argv[6]);
     }
 
-    run(nCities, populationSize, generations, min, max, seed, mutationProbability);
+    run(nCities, populationSize, generations, min, max, seed, mutationProbability, crossoverProbability);
 }
 
 
