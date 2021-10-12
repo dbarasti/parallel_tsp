@@ -3,52 +3,50 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <thread>
 #include <random>
-#include <ctime>
+#include <algorithm>
 #include "Point.h"
 #include <chrono>
-
-using namespace std;
+#include <future>
 
 struct Eval {
     int dstMatrixIndex;
     double score;
 };
 
-Point *generateCities(const int nCities, double min, double max, unsigned int seed) {
-    auto cities = new Point[nCities];
+std::vector<Point> generateCities(const int nCities, double min, double max, unsigned int seed) {
+    std::vector<Point> cities;
+    cities.reserve(nCities);
+
     std::mt19937 gen(seed); //Standard mersenne_twister_engine seeded with rd()
     std::uniform_real_distribution<> dis(min, max);
 
     for (int i = 0; i < nCities; ++i) {
         Point p(round(dis(gen)), round(dis(gen)));
-        cities[i] = p;
+        cities.push_back(p);
     }
     return cities;
 }
 
 /**
- * Returns a shuffled array starting from arr
+ * Returns a shuffled vector starting from vec
  * */
-int *shuffle_array(const int arr[], int n, const unsigned int seed) {
-    int *copy = new int[n];
-    for (int i = 0; i < n; ++i) {
-        copy[i] = arr[i];
-    }
-    // Shuffling our array
-    shuffle(copy, copy + n,
-            default_random_engine(seed));
+std::vector<int> shuffle_vector(const std::vector<int>& vec, const unsigned int seed) {
+    std::vector<int> copy(vec);
+    auto rng = std::default_random_engine(seed);
+    std::shuffle(std::begin(copy), std::end(copy), rng);
     return copy;
 }
 
 /*
  * Computes the evaluation (total trip distance) for each chromosome
  * */
-double *evaluate(int **population, Point *cities, const int populationSize, const int nCities) {
+std::vector<double> evaluate(std::vector<std::vector<int>> population, std::vector<Point> cities, const int populationSize, const int nCities) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
-    auto evaluation = new double[populationSize];
+    std::vector<double> evaluation(populationSize);
     double totalDistanceOfChromosome;
     for (int i = 0; i < populationSize; ++i) {
         totalDistanceOfChromosome = 0;
@@ -69,11 +67,11 @@ double *evaluate(int **population, Point *cities, const int populationSize, cons
 /*
  * Computes fitness value for each chromosome, using the lowerBound estimation
  * */
-double *calculateFitness(const double *evaluation, const int populationSize, const double lowerBound) {
+std::vector<double> calculateFitness(std::vector<double> evaluation, const int populationSize, const double lowerBound) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
-    auto fitness = new double[populationSize];
+    std::vector<double> fitness(populationSize);
     for (int i = 0; i < populationSize; ++i) {
         fitness[i] = lowerBound / evaluation[i];
     }
@@ -85,7 +83,7 @@ double *calculateFitness(const double *evaluation, const int populationSize, con
     return fitness;
 }
 
-int pickOne(const double *fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis) {
+int pickOne(const std::vector<double>& fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis) {
     // Get distribution in 0...fitnessSum
     double r = dis(gen);
     int i = 0;
@@ -97,12 +95,12 @@ int pickOne(const double *fitness, std::mt19937 &gen, std::uniform_real_distribu
     return --i;
 }
 
-int **selection(double *fitness, int **population, const int populationSize, unsigned int seed) {
+std::vector<std::vector<int>> selection(std::vector<double> fitness, std::vector<std::vector<int>> population, const int populationSize, unsigned int seed) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
 
-    int **selection = new int *[populationSize];
+    std::vector<std::vector<int>> selection(populationSize);
     double fitnessSum = 0;
     for (int i = 0; i < populationSize; ++i) {
         fitnessSum += fitness[i];
@@ -125,25 +123,14 @@ int **selection(double *fitness, int **population, const int populationSize, uns
     return selection;
 }
 
-bool isContained(int el, const int *array, int nEl) {
-    for (int i = 0; i < nEl; ++i) {
-        if (array[i] == el) {
-            return true;
-        }
-    }
-    return false;
-}
-
-int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
-    int *combination = new int[nEl];
+std::vector<int> recombine(const std::vector<int>& chromosomeA, std::vector<int>& chromosomeB, int nEl) {
+    std::vector<int> combination(nEl);
     // Pick two rand indexes
     int indexA = rand() % nEl;
     int indexB = rand() % nEl;
 
     if (indexB < indexA) {
-        int aux = indexA;
-        indexA = indexB;
-        indexB = aux;
+        std::swap(indexA, indexB);
     }
 
     // First, put chromosomeA[indexA..indexB (included)] into combination[0..indexB-indexA]
@@ -159,8 +146,8 @@ int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
 
     // Let's combine the rest of the elements
 
-    while (combinationIndex < nEl) {
-        if (!isContained(chromosomeB[chromosomeIndex], combination, combinationIndex)) {
+    while (combinationIndex < nEl && chromosomeIndex < nEl) {
+        if(std::find(combination.begin(), combination.end(), chromosomeB[chromosomeIndex]) == combination.end()){
             combination[combinationIndex] = chromosomeB[chromosomeIndex];
             combinationIndex++;
         }
@@ -170,11 +157,11 @@ int *recombine(const int *chromosomeA, int *chromosomeB, int nEl) {
     return combination;
 }
 
-int **crossover(int **population, const int populationSize, const int nCities, const double crossoverRate) {
+std::vector<std::vector<int>> crossover(const std::vector<std::vector<int>>& population, const int populationSize, const int nCities, const double crossoverRate) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
-    int **selection = new int *[populationSize];
+    std::vector<std::vector<int>> selection(populationSize);
     double r;
     for (int i = 0; i < populationSize; ++i) {
         r = (double) rand() / RAND_MAX;
@@ -184,8 +171,8 @@ int **crossover(int **population, const int populationSize, const int nCities, c
         }
         int indexA = rand() % populationSize;
         int indexB = rand() % populationSize;
-        int *mateA = population[indexA];
-        int *mateB = population[indexB];
+        std::vector<int> mateA = population[indexA];
+        std::vector<int> mateB = population[indexB];
 
         selection[i] = recombine(mateA, mateB, nCities);
     }
@@ -199,36 +186,36 @@ int **crossover(int **population, const int populationSize, const int nCities, c
 
 void printPopulation(int *const *intermediatePopulation, const int populationSize, const int nCities) {
     for (int i = 0; i < populationSize; ++i) {
-        cout << "Chromosome " << i << ":";
+        std::cout << "Chromosome " << i << ":";
         for (int j = 0; j < nCities; ++j) {
-            cout << " " << intermediatePopulation[i][j];
+            std::cout << " " << intermediatePopulation[i][j];
         }
-        cout << endl;
+        std::cout << std::endl;
     }
 }
 
 /*
- * Swaps two random elements of array arr
+ * Swaps two random elements of array vec
  * */
-void swapTwo(int *arr, const int nEl) {
+void swapTwo(std::vector<int>& vec, const int nEl) {
     int indexA = rand() % nEl;
     int indexB = rand() % nEl;
     while (indexA == indexB) {
         indexB = rand() % nEl;
     }
-    int aux = arr[indexA];
-    arr[indexA] = arr[indexB];
-    arr[indexB] = aux;
+    int aux = vec[indexA];
+    vec[indexA] = vec[indexB];
+    vec[indexB] = aux;
 }
 
 /*
  * Swaps two elements inside each chromosome with certain probability
  * */
-void mutate(int **population, const int populationSize, const int nCities, const double probability) {
+void mutate(const std::vector<std::vector<int>>& population, const int populationSize, const int nCities, const double probability) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
-    int *populationToMutate;
+    std::vector<int> populationToMutate;
     for (int i = 0; i < populationSize; ++i) {
         populationToMutate = population[i];
         double r = (float) rand() / RAND_MAX;
@@ -257,7 +244,7 @@ double findBestDistance(const double *distances, int n) {
     return bestSoFar;
 }
 
-double calculateLowerBound(int **population, Point *cities, const int populationSize, const int nCities) {
+double calculateLowerBound(std::vector<std::vector<int>> population, std::vector<Point>cities, const int populationSize, const int nCities) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
@@ -304,9 +291,10 @@ double calculateLowerBound(int **population, Point *cities, const int population
 }
 
 
-void run(const int nCities, const int populationSize, const int generations, const double min, const double max, const unsigned int seed, const double mutationProbability, const double crossoverProbability){
+void run(const int nCities, const int populationSize, const int generations, const double min, const double max,
+         const unsigned int seed, const double mutationProbability, const double crossoverProbability, unsigned int nWorkers) {
     srand(seed);
-    ofstream outFile;
+    std::ofstream outFile;
     outFile.open ("data.txt");
 
 #if TEST == true
@@ -314,13 +302,13 @@ void run(const int nCities, const int populationSize, const int generations, con
     auto start = std::chrono::system_clock::now();
 #endif
     //generate the cities in the array cities
-    Point *cities = generateCities(nCities, min, max, seed);
+    std::vector<Point> cities = generateCities(nCities, min, max, seed);
 
     // Defining the matrix where I store population of orders:
-    int **population;
-    population = new int *[populationSize];
+    std::vector<std::vector<int>> population(populationSize);
+
     for (int i = 0; i < populationSize; i++)
-        population[i] = new int[nCities];
+        population[i].resize(nCities);
 
     // I now need a population
     // The population is made of arrays of indexes, aka orders with which I visit the cities
@@ -335,11 +323,8 @@ void run(const int nCities, const int populationSize, const int generations, con
     // First chromosome has been populated. Now let's create the rest of the initial population
     for (int i = 1; i < populationSize; ++i) {
         // Every time I shuffle the previous chromosome
-        int *a = shuffle_array(population[i - 1], nCities, 0);
-        for (int j = 0; j < nCities; ++j) {
-            population[i][j] = a[j];
-        }
-        delete[] a;
+        population[i].reserve(nCities);
+        population[i] = shuffle_vector(population[i - 1], seed);
     }
 
 #if TEST == true
@@ -357,11 +342,11 @@ void run(const int nCities, const int populationSize, const int generations, con
         double lb = calculateLowerBound(population, cities, populationSize, nCities);
 
         // Let's calculate the evaluation score
-        double *evaluation = evaluate(population, cities, populationSize, nCities);
+        std::vector<double> evaluation = evaluate(population, cities, populationSize, nCities);
 
         // Now calculate fitness (a percentage) based on the evaluation
 
-        double *fitness = calculateFitness(evaluation, populationSize, lb);
+        auto fitness = calculateFitness(evaluation, populationSize, lb);
 
         avgEval = 0;
         bestLocalEval = 0;
@@ -373,7 +358,7 @@ void run(const int nCities, const int populationSize, const int generations, con
         }
         avgEval = avgEval / populationSize;
 
-        outFile << iter << "\t" << avgEval << endl;
+        outFile << iter << "\t" << avgEval << std::endl;
 
         // It's time for reproduction!
 
@@ -382,7 +367,7 @@ void run(const int nCities, const int populationSize, const int generations, con
         // Select populationSize elements so that the higher the fitness the higher the probability to be selected
 
 
-        int **intermediatePopulation = selection(fitness, population, populationSize, seed);
+        std::vector<std::vector<int>> intermediatePopulation = selection(fitness, population, populationSize, seed);
 
         // printPopulation(intermediatePopulation, populationSize, nCities);
 
@@ -390,20 +375,20 @@ void run(const int nCities, const int populationSize, const int generations, con
 
 
         // printPopulation(intermediatePopulation, populationSize, nCities);
-        int **nextGen = crossover(intermediatePopulation, populationSize, nCities, crossoverProbability);
+        std::vector<std::vector<int>> nextGen = crossover(intermediatePopulation, populationSize, nCities, crossoverProbability);
 
         mutate(nextGen, populationSize, nCities, mutationProbability);
 
-        delete[] intermediatePopulation;
-        delete[] fitness;
-        delete[] evaluation;
-        delete[] population;
-        population = nextGen;
+        intermediatePopulation.clear();
+        fitness.clear();
+        evaluation.clear();
+        population.clear();
+        population = std::move(nextGen);
 
     }
-    delete[] population;
+    population.clear();
 
-    delete[] cities;
+    // delete[] cities;
     outFile.close();
 }
 
@@ -411,27 +396,69 @@ void run(const int nCities, const int populationSize, const int generations, con
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 int main(int argc, char *argv[]) {
-    if (argc < 6) {
+
+    // Reading arguments from parameters
+    if (argc < 7) {
         std::cout << "Usage is " << argv[0]
-                  << " nCities populationSize generations mutationProbability crossoverProbability [seed]"
+                  << " nCities populationSize generations mutationProbability crossoverProbability nWorkers[seed]"
                   << std::endl;
         return (-1);
     }
 
-    const int nCities = std::atoi(argv[1]);
-    int const populationSize = std::atoi(argv[2]);
-    int const generations = std::atoi(argv[3]);
-    const double mutationProbability = std::atof(argv[4]);
-    const double crossoverProbability = std::atof(argv[5]);
-    int seed = 35412;
+    int nCities = std::atoi(argv[1]);
+    int populationSize = std::atoi(argv[2]);
+    int generations = std::atoi(argv[3]);
+    double mutationProbability = std::atof(argv[4]);
+    double crossoverProbability = std::atof(argv[5]);
+    unsigned int nWorkers = std::atoi(argv[6]);
     const double min = 0;
     const double max = 100;
+    int seed = argv[7] ? std::atoi(argv[7]) : 35412;
 
-    if (argv[6]) {
-        seed = std::atoi(argv[6]);
+#if TEST == true
+    nCities = 1000;
+    populationSize = 2000;
+    generations = 1;
+    mutationProbability = 0.01;
+    crossoverProbability = 0.1;
+#endif
+
+    std::vector<std::future<void>> workers;
+    std::vector<std::pair<int, int>> chunks;
+
+    // setting the right amount of workers
+    auto const hardware_threads=
+            std::thread::hardware_concurrency();
+
+    auto properWorkers = std::min(hardware_threads-1!=0?hardware_threads-1:2,nWorkers);
+
+    if (properWorkers > populationSize) {
+        properWorkers = populationSize;
     }
 
-    run(nCities, populationSize, generations, min, max, seed, mutationProbability, crossoverProbability);
+    workers.resize(properWorkers);
+    chunks.resize(properWorkers);
+
+    int workerCellsToCompute = std::floor(populationSize / properWorkers);
+    auto remainedElements = populationSize % properWorkers;
+    int index = 0;
+
+    // determine chunks to be assigned
+    std::for_each(chunks.begin(), chunks.end(), [&](std::pair<int, int> &chunk) {
+        chunk.first = index;
+        if (remainedElements) {
+            chunk.second = chunk.first + workerCellsToCompute;
+            remainedElements--;
+        } else {
+            chunk.second = chunk.first + workerCellsToCompute - 1;
+        }
+        index = chunk.second + 1;
+    });
+
+
+
+    run(nCities, populationSize, generations, min, max, seed, mutationProbability, crossoverProbability, nWorkers);
+
 }
 
 
