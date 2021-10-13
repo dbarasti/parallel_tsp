@@ -7,7 +7,6 @@
 #include <random>
 #include <algorithm>
 #include "Point.h"
-#include <chrono>
 #include <future>
 
 struct Eval {
@@ -23,8 +22,7 @@ std::vector<Point> generateCities(const int nCities, double min, double max, uns
     std::uniform_real_distribution<> dis(min, max);
 
     for (int i = 0; i < nCities; ++i) {
-        Point p(round(dis(gen)), round(dis(gen)));
-        cities.push_back(p);
+        cities.emplace_back(round(dis(gen)), round(dis(gen)));
     }
     return cities;
 }
@@ -32,7 +30,7 @@ std::vector<Point> generateCities(const int nCities, double min, double max, uns
 /**
  * Returns a shuffled vector starting from vec
  * */
-std::vector<int> shuffle_vector(const std::vector<int>& vec, const unsigned int seed) {
+std::vector<int> shuffle_vector(std::vector<int>& vec, const unsigned int seed) {
     std::vector<int> copy(vec);
     auto rng = std::default_random_engine(seed);
     std::shuffle(std::begin(copy), std::end(copy), rng);
@@ -42,7 +40,7 @@ std::vector<int> shuffle_vector(const std::vector<int>& vec, const unsigned int 
 /*
  * Computes the evaluation (total trip distance) for each chromosome
  * */
-std::vector<double> evaluate(std::vector<std::vector<int>> population, std::vector<Point> cities, const int populationSize, const int nCities) {
+std::vector<double> evaluate(std::vector<std::vector<int>>& population, std::vector<Point>& cities, const int & populationSize, const int & nCities) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
@@ -67,7 +65,7 @@ std::vector<double> evaluate(std::vector<std::vector<int>> population, std::vect
 /*
  * Computes fitness value for each chromosome, using the lowerBound estimation
  * */
-std::vector<double> calculateFitness(std::vector<double> evaluation, const int populationSize, const double lowerBound) {
+std::vector<double> calculateFitness(std::vector<double>& evaluation, const int & populationSize, const double & lowerBound) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
@@ -95,7 +93,7 @@ int pickOne(const std::vector<double>& fitness, std::mt19937 &gen, std::uniform_
     return --i;
 }
 
-std::vector<std::vector<int>> selection(std::vector<double> fitness, std::vector<std::vector<int>> population, const int populationSize, unsigned int seed) {
+std::vector<std::vector<int>> selection(const std::vector<double> & fitness, const std::vector<std::vector<int>> & population, const int populationSize, unsigned int seed) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
@@ -123,7 +121,7 @@ std::vector<std::vector<int>> selection(std::vector<double> fitness, std::vector
     return selection;
 }
 
-std::vector<int> recombine(const std::vector<int>& chromosomeA, std::vector<int>& chromosomeB, int nEl) {
+std::vector<int> recombine(std::vector<int>& chromosomeA, std::vector<int>& chromosomeB, int nEl) {
     std::vector<int> combination(nEl);
     // Pick two rand indexes
     int indexA = rand() % nEl;
@@ -153,11 +151,10 @@ std::vector<int> recombine(const std::vector<int>& chromosomeA, std::vector<int>
         }
         chromosomeIndex++;
     }
-
     return combination;
 }
 
-std::vector<std::vector<int>> crossover(const std::vector<std::vector<int>>& population, const int populationSize, const int nCities, const double crossoverRate) {
+std::vector<std::vector<int>> crossover(std::vector<std::vector<int>>& population, const int populationSize, const int nCities, const double crossoverRate) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
@@ -184,16 +181,6 @@ std::vector<std::vector<int>> crossover(const std::vector<std::vector<int>>& pop
     return selection;
 }
 
-void printPopulation(int *const *intermediatePopulation, const int populationSize, const int nCities) {
-    for (int i = 0; i < populationSize; ++i) {
-        std::cout << "Chromosome " << i << ":";
-        for (int j = 0; j < nCities; ++j) {
-            std::cout << " " << intermediatePopulation[i][j];
-        }
-        std::cout << std::endl;
-    }
-}
-
 /*
  * Swaps two random elements of array vec
  * */
@@ -211,7 +198,7 @@ void swapTwo(std::vector<int>& vec, const int nEl) {
 /*
  * Swaps two elements inside each chromosome with certain probability
  * */
-void mutate(const std::vector<std::vector<int>>& population, const int populationSize, const int nCities, const double probability) {
+void mutate(std::vector<std::vector<int>>& population, const int populationSize, const int nCities, const double probability) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
@@ -244,7 +231,7 @@ double findBestDistance(const double *distances, int n) {
     return bestSoFar;
 }
 
-double calculateLowerBound(std::vector<std::vector<int>> population, std::vector<Point>cities, const int populationSize, const int nCities) {
+double calculateLowerBound(std::vector<std::vector<int>>& population, std::vector<Point>&cities, const int & populationSize, const int & nCities) {
 #if TEST == true
     auto start = std::chrono::system_clock::now();
 #endif
