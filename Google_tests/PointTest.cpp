@@ -3,7 +3,7 @@
 //
 
 #include "gtest/gtest.h"
-#include "../Point.h"
+#include "../src/lib/Point.h"
 
 TEST(PointTestSuite, CorrectDistance){
     Point p1{4,1};
