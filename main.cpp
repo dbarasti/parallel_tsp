@@ -1,4 +1,4 @@
-#define TEST true
+#define TEST 1
 
 
 #include <iostream>
@@ -24,15 +24,23 @@ int main(int argc, char *argv[]) {
     int seed = argv[7] ? std::atoi(argv[7]) : 35412;
 
 #if TEST == true
-    nCities = 1000;
+    nCities = 5000;
     populationSize = 2000;
-    generations = 1;
+    generations = 2;
     mutationProbability = 0.01;
     crossoverProbability = 0.1;
 #endif
 
-    auto parallelTSP = ParallelTSP();
-    parallelTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, nWorkers, seed);
+    auto seqTSP = SequentialTSP();
+#if TEST
+    auto start = std::chrono::system_clock::now();
+#endif
+    seqTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, seed);
+#if TEST
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Total Sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
 
 }
 

@@ -172,7 +172,7 @@ inline std::vector<double> ParallelTSP::evaluate() {
     }
 #if TEST
     auto end = std::chrono::system_clock::now();
-    std::cout << "Evaluation - sequential time: "
+    std::cout << "Evaluation - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
     return evaluation;
@@ -188,7 +188,7 @@ inline std::vector<double> ParallelTSP::calculateFitness(std::vector<double> &ev
     }
 #if TEST
     auto end = std::chrono::system_clock::now();
-    std::cout << "Fitness - sequential time: "
+    std::cout << "Fitness - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
     return fitness;
@@ -229,7 +229,7 @@ inline void ParallelTSP::selection(const std::vector<double> &fitness, unsigned 
 
 #if TEST
     auto end = std::chrono::system_clock::now();
-    std::cout << "Selection - sequential time: "
+    std::cout << "Selection - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
 }
@@ -245,18 +245,28 @@ inline std::vector<int> ParallelTSP::recombine(std::vector<int> &chromosomeA, st
     }
 
     // First, put chromosomeA[indexA..indexB (included)] into combination[0..indexB-indexA]
+#if TEST
+    auto start = std::chrono::system_clock::now();
+#endif
     int i;
     int chromosomeIndex = indexA;
     for (i = 0; i < indexB - indexA + 1; ++i) {
         combination[i] = chromosomeA[chromosomeIndex];
         chromosomeIndex++;
     }
+#if TEST
+    auto end = std::chrono::system_clock::now();
+    std::cout << "recombine step 1 - parallel time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
 
     int combinationIndex = i;
     chromosomeIndex = 0;
 
+#if TEST
+    start = std::chrono::system_clock::now();
+#endif
     // Let's combine the rest of the elements
-
     while (combinationIndex < nEl && chromosomeIndex < nEl) {
         if(std::find(combination.begin(), combination.end(), chromosomeB[chromosomeIndex]) == combination.end()){
             combination[combinationIndex] = chromosomeB[chromosomeIndex];
@@ -264,11 +274,18 @@ inline std::vector<int> ParallelTSP::recombine(std::vector<int> &chromosomeA, st
         }
         chromosomeIndex++;
     }
+#if TEST
+    end = std::chrono::system_clock::now();
+    std::cout << "recombine step 2 - parallel time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
+
     return combination;
 }
 
 inline void ParallelTSP::crossover(const double crossoverRate) {
 #if TEST
+    auto partialRecombine = 0;
     auto start = std::chrono::system_clock::now();
 #endif
     std::vector<std::vector<int>> newPopulation(population.size());
@@ -284,13 +301,23 @@ inline void ParallelTSP::crossover(const double crossoverRate) {
         std::vector<int> mateA = population[indexA];
         std::vector<int> mateB = population[indexB];
 
+#if TEST
+        auto startRecombine = std::chrono::system_clock::now();
+#endif
         newPopulation[i] = recombine(mateA, mateB, cities.size());
+#if TEST
+        auto endRecombine = std::chrono::system_clock::now();
+        partialRecombine += std::chrono::duration_cast<std::chrono::milliseconds>(endRecombine - startRecombine).count();
+#endif
     }
     population = std::move(newPopulation);
 #if TEST
     auto end = std::chrono::system_clock::now();
-    std::cout << "Crossover - sequential time: "
+    std::cout << "Crossover - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    std::cout << "Recombine - parallel time: "
+              << partialRecombine << "ms" << std::endl;
+
 #endif
 }
 
@@ -307,7 +334,7 @@ inline void ParallelTSP::mutate(const double probability) {
     }
 #if TEST
     auto end = std::chrono::system_clock::now();
-    std::cout << "Mutation - sequential time: "
+    std::cout << "Mutation - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
 }
@@ -364,7 +391,7 @@ inline double ParallelTSP::calculateLowerBound() {
     delete[] dstMatrix;
 #if TEST == true
     auto end = std::chrono::system_clock::now();
-    std::cout << "Lower bound calculation - sequential time: "
+    std::cout << "Lower bound calculation - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
     return lowerBound;
@@ -393,7 +420,7 @@ inline void ParallelTSP::generateInitialPopulation(int seed) {
 
 #if TEST
     auto end = std::chrono::system_clock::now();
-    std::cout << "Initial population generation - sequential time: "
+    std::cout << "Initial population generation - parallel time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
 }

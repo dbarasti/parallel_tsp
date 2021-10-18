@@ -25,30 +25,31 @@ private:
     std::vector<Point> cities;
     std::vector<std::vector<int>> population;
 
+    void setup(unsigned int populationSize, unsigned int nCities);
+
     std::vector<Point> generateCities(int nCities, int seed);
+
+    void generateInitialPopulation(int seed);
 
     double calculateLowerBound();
 
     std::vector<double> evaluate();
 
-    std::vector<double> calculateFitness(std::vector<double>& evaluation, const double & lowerBound);
+    static std::vector<double> calculateFitness(std::vector<double>& evaluation, const double & lowerBound);
 
-    std::vector<std::vector<int>> selection(const std::vector<double> & fitness, const std::vector<std::vector<int>> & population, unsigned int seed);
+    void selection(const std::vector<double> & fitness, unsigned int seed);
 
-    std::vector<std::vector<int>> crossover(std::vector<std::vector<int>>& population, int nCities, double crossoverRate);
+    void crossover(double crossoverRate);
 
-    std::vector<int> recombine(std::vector<int>& chromosomeA, std::vector<int>& chromosomeB, int nEl);
+    void mutate(double probability);
 
-    void mutate(int nCities, double probability);
+    static std::vector<int> recombine(const std::vector<int>& chromosomeA, const std::vector<int>& chromosomeB, int nEl);
 
     static std::vector<int> shuffle_vector(std::vector<int> &vec, int seed);
 
-    int pickOne(const std::vector<double>& fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis);
+    static int pickOne(const std::vector<double>& fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis);
 
-    void swapTwo(std::vector<int>& vec, int nEl);
-
-    static double findBestDistance(const double *distances, unsigned long n);
-
+    static double findBestDistance(const std::vector<double>& distances);
 };
 
 void SequentialTSP::run(int nCities, unsigned int populationSize, int generations, double mutationProbability, double crossoverProbability, int seed) {
@@ -56,106 +57,55 @@ void SequentialTSP::run(int nCities, unsigned int populationSize, int generation
     std::ofstream outFile;
     outFile.open ("data.txt");
 
-#if TEST
-    // start timer to record the initial population generation
-    auto start = std::chrono::system_clock::now();
-#endif
-
-    population.resize(populationSize);
-    for (unsigned int i = 0; i < populationSize; i++)
-        population[i].resize(nCities);
+    setup(populationSize, nCities);
 
     //generate the cities in the array cities
     // ONE TIME ONLY. DONE SEQUENTIALLY
     cities = generateCities(nCities, seed);
 
-
     // I now need a population
-    // The population is made of arrays of indexes, aka orders with which I visit the cities
-    // The order changes, the cities array remain the same
-
-    // FOR EACH CHUNK, GENERATE POPULATION IN PARALLEL, ALWAYS STARTING FROM AN INITIAL ORDER
-    // the initial ordering can be generated with
-
-    for (int i = 0; i < nCities; ++i) {
-        population[0][i] = i;
-    }
-
-    // ...
-
-    // First chromosome has been populated. Now let's create the rest of the initial population
-    for (int i = 1; i < populationSize; ++i) {
-        // Every time I shuffle the previous chromosome
-        population[i].reserve(nCities);
-        population[i] = shuffle_vector(population[i - 1], seed);
-    }
-
-#if TEST
-    auto end = std::chrono::system_clock::now();
-    std::cout << "Initial population generation - sequential time: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-#endif
+    // ONE TIME ONLY. DONE SEQUENTIALLY
+    generateInitialPopulation(seed);
 
     // Now we have an initial population ready
-    double bestLocalEval;
-    double avgEval;
-
+    // we can start with the iterations
     for (int iter = 0; iter < generations; ++iter) {
 
         double lb = calculateLowerBound();
 
         // Let's calculate the evaluation score
-        std::vector<double> evaluation = evaluate();
+        auto evaluation = evaluate();
 
         // Now calculate fitness (a percentage) based on the evaluation
-
         auto fitness = calculateFitness(evaluation, lb);
 
-        avgEval = 0;
-        bestLocalEval = 0;
-        for (int i = 0; i < populationSize; ++i) {
-            avgEval += evaluation[i];
-            if (evaluation[i] > bestLocalEval) {
-                bestLocalEval = evaluation[i];
-            }
-        }
-        avgEval = avgEval / populationSize;
-
-        outFile << iter << "\t" << avgEval << std::endl;
+        utils::computeAvgEval(outFile, iter, evaluation);
 
         // It's time for reproduction!
-
         // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
-
         // Select populationSize elements so that the higher the fitness the higher the probability to be selected
+        selection(fitness, seed);
 
+        crossover(crossoverProbability);
 
-        std::vector<std::vector<int>> intermediatePopulation = selection(fitness, population, seed);
+        mutate(mutationProbability);
 
-        // printPopulation(intermediatePopulation, populationSize, nCities);
-
-        // With the intermediate population I can now crossover the elements
-
-
-        // printPopulation(intermediatePopulation, populationSize, nCities);
-        std::vector<std::vector<int>> nextGen = crossover(intermediatePopulation, nCities, crossoverProbability);
-
-        mutate(nCities, mutationProbability);
-
-        intermediatePopulation.clear();
         fitness.clear();
         evaluation.clear();
-        population.clear();
-        population = std::move(nextGen);
-
     }
     population.clear();
-
-    // delete[] cities;
     outFile.close();
 }
 
-std::vector<Point> SequentialTSP::generateCities(int nCities, int seed) {
+inline void SequentialTSP::setup(unsigned int populationSize, unsigned int nCities) {
+    // resizing population
+    population.resize(populationSize);
+
+    for (auto & chromosome : population)
+        chromosome.resize(nCities);
+}
+
+inline std::vector<Point> SequentialTSP::generateCities(int nCities, int seed) {
     cities.reserve(nCities);
 
     std::mt19937 gen(seed); //Standard mersenne_twister_engine seeded with rd()
@@ -167,14 +117,14 @@ std::vector<Point> SequentialTSP::generateCities(int nCities, int seed) {
     return cities;
 }
 
-std::vector<int> SequentialTSP::shuffle_vector(std::vector<int> &vec, int seed) {
+inline std::vector<int> SequentialTSP::shuffle_vector(std::vector<int> &vec, int seed) {
     std::vector<int> copy(vec);
     auto rng = std::default_random_engine(seed);
     std::shuffle(std::begin(copy), std::end(copy), rng);
     return copy;
 }
 
-std::vector<double> SequentialTSP::evaluate() {
+inline std::vector<double> SequentialTSP::evaluate() {
 #if TEST
     auto start = std::chrono::system_clock::now();
 #endif
@@ -196,7 +146,7 @@ std::vector<double> SequentialTSP::evaluate() {
     return evaluation;
 }
 
-std::vector<double> SequentialTSP::calculateFitness(std::vector<double> &evaluation, const double &lowerBound) {
+inline std::vector<double> SequentialTSP::calculateFitness(std::vector<double> &evaluation, const double &lowerBound) {
 #if TEST
     auto start = std::chrono::system_clock::now();
 #endif
@@ -212,7 +162,7 @@ std::vector<double> SequentialTSP::calculateFitness(std::vector<double> &evaluat
     return fitness;
 }
 
-int SequentialTSP::pickOne(const std::vector<double> &fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis) {
+inline int SequentialTSP::pickOne(const std::vector<double> &fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis) {
     // Get distribution in 0...fitnessSum
     double r = dis(gen);
     int i = 0;
@@ -224,37 +174,35 @@ int SequentialTSP::pickOne(const std::vector<double> &fitness, std::mt19937 &gen
     return --i;
 }
 
-std::vector<std::vector<int>>
-SequentialTSP::selection(const std::vector<double> &fitness, const std::vector<std::vector<int>> &population,
-                         unsigned int seed) {
+inline void SequentialTSP::selection(const std::vector<double> &fitness, unsigned int seed) {
 #if TEST
     auto start = std::chrono::system_clock::now();
 #endif
 
     std::vector<std::vector<int>> selection(population.size());
     double fitnessSum = 0;
-    for (int i = 0; i < population.size(); ++i) {
+    for (unsigned long i = 0; i < population.size(); ++i) {
         fitnessSum += fitness[i];
     }
     std::mt19937 gen(seed); //Standard mersenne_twister_engine
     std::uniform_real_distribution<> dis(0, fitnessSum);
 
     int pickedIndex;
-    for (int i = 0; i < population.size(); ++i) {
+    for (unsigned long i = 0; i < population.size(); ++i) {
         pickedIndex = pickOne(fitness, gen, dis);
         // timesPicked[pickedIndex]++;
         selection[i] = population[pickedIndex];
     }
+    population = std::move(selection);
 
 #if TEST
     auto end = std::chrono::system_clock::now();
     std::cout << "Selection - sequential time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
-    return selection;
 }
 
-std::vector<int> SequentialTSP::recombine(std::vector<int> &chromosomeA, std::vector<int> &chromosomeB, int nEl) {
+inline std::vector<int> SequentialTSP::recombine(const std::vector<int> &chromosomeA, const std::vector<int> &chromosomeB, int nEl) {
     std::vector<int> combination(nEl);
     // Pick two rand indexes
     int indexA = rand() % nEl;
@@ -276,7 +224,6 @@ std::vector<int> SequentialTSP::recombine(std::vector<int> &chromosomeA, std::ve
     chromosomeIndex = 0;
 
     // Let's combine the rest of the elements
-
     while (combinationIndex < nEl && chromosomeIndex < nEl) {
         if(std::find(combination.begin(), combination.end(), chromosomeB[chromosomeIndex]) == combination.end()){
             combination[combinationIndex] = chromosomeB[chromosomeIndex];
@@ -287,17 +234,17 @@ std::vector<int> SequentialTSP::recombine(std::vector<int> &chromosomeA, std::ve
     return combination;
 }
 
-std::vector<std::vector<int>>
-SequentialTSP::crossover(std::vector<std::vector<int>> &population, const int nCities, const double crossoverRate) {
+inline void SequentialTSP::crossover(const double crossoverRate) {
 #if TEST
+    auto partialRecombine = 0;
     auto start = std::chrono::system_clock::now();
 #endif
-    std::vector<std::vector<int>> selection(population.size());
+    std::vector<std::vector<int>> newPopulation(population.size());
     double r;
-    for (int i = 0; i < population.size(); ++i) {
+    for (unsigned long i = 0; i < population.size(); ++i) {
         r = (double) rand() / RAND_MAX;
         if (r >= crossoverRate) {
-            selection[i] = population[i];
+            newPopulation[i] = population[i];
             continue;
         }
         int indexA = rand() % population.size();
@@ -305,38 +252,36 @@ SequentialTSP::crossover(std::vector<std::vector<int>> &population, const int nC
         std::vector<int> mateA = population[indexA];
         std::vector<int> mateB = population[indexB];
 
-        selection[i] = recombine(mateA, mateB, nCities);
+#if TEST
+        auto startRecombine = std::chrono::system_clock::now();
+#endif
+        newPopulation[i] = recombine(mateA, mateB, cities.size());
+#if TEST
+        auto endRecombine = std::chrono::system_clock::now();
+        partialRecombine += std::chrono::duration_cast<std::chrono::milliseconds>(endRecombine - startRecombine).count();
+#endif
     }
+    population = std::move(newPopulation);
 #if TEST
     auto end = std::chrono::system_clock::now();
     std::cout << "Crossover - sequential time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    std::cout << "Recombine - sequential time: "
+              << partialRecombine << "ms" << std::endl;
+
 #endif
-    return selection;
 }
 
-void SequentialTSP::swapTwo(std::vector<int> &vec, const int nEl) {
-    int indexA = rand() % nEl;
-    int indexB = rand() % nEl;
-    while (indexA == indexB) {
-        indexB = rand() % nEl;
-    }
-    int aux = vec[indexA];
-    vec[indexA] = vec[indexB];
-    vec[indexB] = aux;
-}
 
-void SequentialTSP::mutate(const int nCities, const double probability) {
+inline void SequentialTSP::mutate(const double probability) {
 #if TEST
     auto start = std::chrono::system_clock::now();
 #endif
-    std::vector<int> populationToMutate;
-    for (int i = 0; i < population.size(); ++i) {
-        populationToMutate = population[i];
+    for (auto & toMutate : population) {
         double r = (float) rand() / RAND_MAX;
         if (r < probability) {
-            swapTwo(populationToMutate, nCities);
-        }
+            utils::swapTwo(toMutate);
+        } // else, do nothing, aka do not mutate
     }
 #if TEST
     auto end = std::chrono::system_clock::now();
@@ -347,17 +292,18 @@ void SequentialTSP::mutate(const int nCities, const double probability) {
 
 
 
-double SequentialTSP::findBestDistance(const double *distances, unsigned long n) {
+inline double SequentialTSP::findBestDistance(const std::vector<double>& distances) {
     double bestSoFar = MAXFLOAT;
-    for (unsigned long i = 0; i < n; ++i) {
-        if (distances[i] < bestSoFar) {
-            bestSoFar = distances[i];
+    for (double distance : distances) {
+        if (distance < bestSoFar) {
+            bestSoFar = distance;
         }
     }
     return bestSoFar;
 }
 
-double SequentialTSP::calculateLowerBound() {
+/*
+inline double SequentialTSP::calculateLowerBound() {
 #if TEST
     auto start = std::chrono::system_clock::now();
 #endif
@@ -401,6 +347,82 @@ double SequentialTSP::calculateLowerBound() {
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
     return lowerBound;
+}
+ */
+
+inline double SequentialTSP::calculateLowerBound() {
+#if TEST
+    auto start = std::chrono::system_clock::now();
+#endif
+    std::vector<utils::Eval> evaluation(population.size());
+
+    std::vector<std::vector<double>> dstMatrix(population.size());
+    for (unsigned int i = 0; i < population.size(); ++i) {
+        dstMatrix[i] = std::vector<double>(cities.size() - 1);
+    }
+
+    double totalDistanceOfChromosome;
+    double dst;
+    double lowerBound = 0;
+    for (unsigned int i = 0; i < population.size(); ++i) {
+        totalDistanceOfChromosome = 0;
+        for (unsigned int j = 0; j < cities.size() - 1; ++j) {
+            dst = cities[population[i][j]].dist(cities[population[i][j + 1]]);
+            dstMatrix[i][j] = dst;
+            totalDistanceOfChromosome += dst;
+        }
+        // Evaluation score of i-th chromosome
+        evaluation[i].score = totalDistanceOfChromosome;
+        evaluation[i].dstMatrixIndex = i;
+    }
+
+    // Sort evaluation by score
+    std::sort(evaluation.begin(), evaluation.end(), utils::compareEvaluations);
+
+    // pick populationSize-1 distances, one for each of the first ncities-1 dstMatrix rows. Pick every time the smallest of the row
+    for (unsigned int i = 0; i < population.size() - 1; ++i) {
+        double bestDistance = findBestDistance(dstMatrix[evaluation[i].dstMatrixIndex]);
+        lowerBound += bestDistance;
+    }
+    evaluation.clear();
+    for (unsigned int k = 0; k < population.size(); ++k) {
+        dstMatrix[k].clear();
+    }
+    dstMatrix.clear();
+#if TEST == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Lower bound calculation - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
+    return lowerBound;
+}
+
+inline void SequentialTSP::generateInitialPopulation(int seed) {
+#if TEST
+    // start timer to record the initial population generation
+    auto start = std::chrono::system_clock::now();
+#endif
+    // The population is made of arrays of indexes, aka orders with which I visit the cities
+    // The order changes, the cities array remains the same
+    // the initial ordering can be generated with
+    for (unsigned long i = 0; i < cities.size(); ++i) {
+        population[0][i] = i;
+    }
+
+    // ...
+
+    // First chromosome has been populated. Now let's create the rest of the initial population
+    for (unsigned long i = 1; i < population.size(); ++i) {
+        // Every time I shuffle the previous chromosome
+        population[i].reserve(cities.size());
+        population[i] = shuffle_vector(population[i - 1], seed);
+    }
+
+#if TEST
+    auto end = std::chrono::system_clock::now();
+    std::cout << "Initial population generation - sequential time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+#endif
 }
 
 
