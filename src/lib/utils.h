@@ -14,6 +14,7 @@ namespace utils{
     inline bool compareEvaluations(utils::Eval a, utils::Eval b);
     inline void swapTwo(std::vector<int> &vec);
     inline void computeAvgEval(std::ofstream &outFile, int iter, const std::vector<double> &evaluation);
+    inline double findBestDistance(const std::vector<double>& distances);
 }
 
 bool utils::compareEvaluations(utils::Eval a, utils::Eval b) {
@@ -46,5 +47,16 @@ void utils::computeAvgEval(std::ofstream &outFile, int iter, const std::vector<d
 
     outFile << iter << "\t" << avgEval << std::endl;
 }
+
+inline double utils::findBestDistance(const std::vector<double>& distances) {
+    double bestSoFar = MAXFLOAT;
+    for (double distance : distances) {
+        if (distance < bestSoFar) {
+            bestSoFar = distance;
+        }
+    }
+    return bestSoFar;
+}
+
 
 #endif //TSP_GA_UTILS_H
