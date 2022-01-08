@@ -1,4 +1,4 @@
-#define TEST 1
+#define TEST 0
 
 
 #include <iostream>
@@ -25,22 +25,34 @@ int main(int argc, char *argv[]) {
 
 #if TEST == true
     nCities = 5000;
-    populationSize = 2000;
-    generations = 2;
+    populationSize = 20000;
+    generations = 1;
     mutationProbability = 0.01;
     crossoverProbability = 0.1;
+    nWorkers = 4;
 #endif
 
     auto seqTSP = SequentialTSP();
-#if TEST
+    auto parTSP = ParallelTSP();
+
+
     auto start = std::chrono::system_clock::now();
-#endif
-    seqTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, seed);
-#if TEST
+
+    // auto statusSeq = seqTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, seed);
+    // if (statusSeq) return -1;
+
     auto end = std::chrono::system_clock::now();
     std::cout << "Total Sequential time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-#endif
+    start = std::chrono::system_clock::now();
+
+    auto statusPar = parTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, nWorkers, seed);
+    if (statusPar) return -1;
+
+    end = std::chrono::system_clock::now();
+    std::cout << "Total Parallel time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+
 
 }
 

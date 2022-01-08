@@ -18,14 +18,14 @@
 
 class SequentialTSP{
 public:
-    void run(int nCities, unsigned int populationSize, int generations, double mutationProbability, double crossoverProbability, int seed);
+    int run(int nCities, unsigned int populationSize, int generations, double mutationProbability, double crossoverProbability, int seed);
 private:
     const double MIN = 0;
     const double MAX = 100;
     std::vector<Point> cities;
     std::vector<std::vector<int>> population;
 
-    void setup(unsigned int populationSize, unsigned int nCities);
+    void setup(unsigned int populationSize, unsigned int nCities, int seed);
 
     std::vector<Point> generateCities(int nCities, int seed);
 
@@ -48,16 +48,17 @@ private:
     static std::vector<int> shuffle_vector(std::vector<int> &vec, int seed);
 
     static int pickOne(const std::vector<double>& fitness, std::mt19937 &gen, std::uniform_real_distribution<> dis);
-
-    static double findBestDistance(const std::vector<double>& distances);
 };
 
-void SequentialTSP::run(int nCities, unsigned int populationSize, int generations, double mutationProbability, double crossoverProbability, int seed) {
-    srand(seed);
+int SequentialTSP::run(int nCities, unsigned int populationSize, int generations, double mutationProbability, double crossoverProbability, int seed) {
+    if (nCities > populationSize){
+        std::cout << "[ERROR] nCities cannot be greater than populationSize" << std::endl;
+        return 1;
+    }
     std::ofstream outFile;
-    outFile.open ("data.txt");
+    outFile.open ("data_seq.txt", std::ofstream::trunc);
 
-    setup(populationSize, nCities);
+    setup(populationSize, nCities, seed);
 
     //generate the cities in the array cities
     // ONE TIME ONLY. DONE SEQUENTIALLY
@@ -70,7 +71,6 @@ void SequentialTSP::run(int nCities, unsigned int populationSize, int generation
     // Now we have an initial population ready
     // we can start with the iterations
     for (int iter = 0; iter < generations; ++iter) {
-
         double lb = calculateLowerBound();
 
         // Let's calculate the evaluation score
@@ -92,12 +92,16 @@ void SequentialTSP::run(int nCities, unsigned int populationSize, int generation
 
         fitness.clear();
         evaluation.clear();
+
+        if (iter % 100 == 0) std::cout << "iter " << iter + 1 << std::endl;
     }
     population.clear();
     outFile.close();
+    return 0;
 }
 
-inline void SequentialTSP::setup(unsigned int populationSize, unsigned int nCities) {
+inline void SequentialTSP::setup(unsigned int populationSize, unsigned int nCities, int seed) {
+    srand(seed);
     // resizing population
     population.resize(populationSize);
 
@@ -236,7 +240,6 @@ inline std::vector<int> SequentialTSP::recombine(const std::vector<int> &chromos
 
 inline void SequentialTSP::crossover(const double crossoverRate) {
 #if TEST
-    auto partialRecombine = 0;
     auto start = std::chrono::system_clock::now();
 #endif
     std::vector<std::vector<int>> newPopulation(population.size());
@@ -252,23 +255,13 @@ inline void SequentialTSP::crossover(const double crossoverRate) {
         std::vector<int> mateA = population[indexA];
         std::vector<int> mateB = population[indexB];
 
-#if TEST
-        auto startRecombine = std::chrono::system_clock::now();
-#endif
         newPopulation[i] = recombine(mateA, mateB, cities.size());
-#if TEST
-        auto endRecombine = std::chrono::system_clock::now();
-        partialRecombine += std::chrono::duration_cast<std::chrono::milliseconds>(endRecombine - startRecombine).count();
-#endif
     }
     population = std::move(newPopulation);
 #if TEST
     auto end = std::chrono::system_clock::now();
     std::cout << "Crossover - sequential time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-    std::cout << "Recombine - sequential time: "
-              << partialRecombine << "ms" << std::endl;
-
 #endif
 }
 
@@ -289,66 +282,6 @@ inline void SequentialTSP::mutate(const double probability) {
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 #endif
 }
-
-
-
-inline double SequentialTSP::findBestDistance(const std::vector<double>& distances) {
-    double bestSoFar = MAXFLOAT;
-    for (double distance : distances) {
-        if (distance < bestSoFar) {
-            bestSoFar = distance;
-        }
-    }
-    return bestSoFar;
-}
-
-/*
-inline double SequentialTSP::calculateLowerBound() {
-#if TEST
-    auto start = std::chrono::system_clock::now();
-#endif
-    auto evaluation = new utils::Eval[population.size()];
-    // Matrix initialization
-    auto dstMatrix = new double *[population.size()];
-    for (unsigned int i = 0; i < population.size(); ++i) {
-        dstMatrix[i] = new double[cities.size() - 1];
-    }
-    double totalDistanceOfChromosome;
-    double dst;
-    double lowerBound = 0;
-    for (unsigned int i = 0; i < population.size(); ++i) {
-        totalDistanceOfChromosome = 0;
-        for (unsigned int j = 0; j < cities.size() - 1; ++j) {
-            dst = cities[population[i][j]].dist(cities[population[i][j + 1]]);
-            dstMatrix[i][j] = dst;
-            totalDistanceOfChromosome += dst;
-        }
-        // Evaluation score of i-th chromosome
-        evaluation[i].score = totalDistanceOfChromosome;
-        evaluation[i].dstMatrixIndex = i;
-    }
-
-    // Sort evaluation by score
-    std::sort(evaluation, evaluation + population.size(), utils::compareEvaluations);
-
-    // pick ncities-1 distances, one for each of the first ncities-1 dstMatrix rows. Pick every time the smallest of the row
-    for (unsigned int i = 0; i < cities.size() - 1; ++i) {
-        double bestDistance = findBestDistance(dstMatrix[evaluation[i].dstMatrixIndex], cities.size() - 1);
-        lowerBound += bestDistance;
-    }
-    delete[] evaluation;
-    for (unsigned int k = 0; k < population.size(); ++k) {
-        delete[] dstMatrix[k];
-    }
-    delete[] dstMatrix;
-#if TEST == true
-    auto end = std::chrono::system_clock::now();
-    std::cout << "Lower bound calculation - sequential time: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-#endif
-    return lowerBound;
-}
- */
 
 inline double SequentialTSP::calculateLowerBound() {
 #if TEST
@@ -379,16 +312,11 @@ inline double SequentialTSP::calculateLowerBound() {
     // Sort evaluation by score
     std::sort(evaluation.begin(), evaluation.end(), utils::compareEvaluations);
 
-    // pick populationSize-1 distances, one for each of the first ncities-1 dstMatrix rows. Pick every time the smallest of the row
-    for (unsigned int i = 0; i < population.size() - 1; ++i) {
-        double bestDistance = findBestDistance(dstMatrix[evaluation[i].dstMatrixIndex]);
+    // pick nCities-1 distances, one for each of the first ncities-1 dstMatrix rows. Pick every time the smallest of the row
+    for (unsigned int i = 0; i < cities.size() - 1; ++i) {
+        double bestDistance = utils::findBestDistance(dstMatrix[evaluation[i].dstMatrixIndex]);
         lowerBound += bestDistance;
     }
-    evaluation.clear();
-    for (unsigned int k = 0; k < population.size(); ++k) {
-        dstMatrix[k].clear();
-    }
-    dstMatrix.clear();
 #if TEST == true
     auto end = std::chrono::system_clock::now();
     std::cout << "Lower bound calculation - sequential time: "
