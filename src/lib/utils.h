@@ -49,7 +49,7 @@ void utils::computeAvgEval(std::ofstream &outFile, int iter, const std::vector<d
 }
 
 inline double utils::findBestDistance(const std::vector<double>& distances) {
-    double bestSoFar = MAXFLOAT;
+    double bestSoFar = 1000000;
     for (double distance : distances) {
         if (distance < bestSoFar) {
             bestSoFar = distance;
