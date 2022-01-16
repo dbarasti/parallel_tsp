@@ -14,7 +14,7 @@ Now to build the project type:
 
 Otherwise, to use GCC use: 
 
-`g++ -std=c++17 -O3 main.cpp -o tsp-gen -pthread -DBLOCKING_MODE`
+`g++ -std=c++17 -O3 main.cpp -o tsp-gen -pthread -I <path/to/fastflow> -DBLOCKING_MODE`
 
 To run the program correctly, you need to pass to the executable the following parameters: 
 
