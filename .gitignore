@@ -140,3 +140,11 @@ fabric.properties
 
 # End of https://www.toptal.com/developers/gitignore/api/clion,c++
 
+
+builds/
+
+plotting-and-data/script/
+
+plotting-and-data/remote/
+
+plotting-and-data/data/64th/
