@@ -12,7 +12,7 @@ If CMake is installed type:
 Now to build the project type: 
 `cmake --build .` 
 
-Otherwise, to use GCC use: 
+If you encounter any problem, to use GCC run: 
 
 `g++ -std=c++17 -O3 main.cpp -o tsp-gen -pthread -I <path/to/fastflow> -DBLOCKING_MODE`
 
