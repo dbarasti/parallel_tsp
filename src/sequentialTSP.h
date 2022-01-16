@@ -67,7 +67,9 @@ int SequentialTSP::run(int nCities, unsigned int populationSize, int generations
     // I now need a population
     // ONE TIME ONLY. DONE SEQUENTIALLY
     generateInitialPopulation(seed);
-
+#if MEASURE == true
+    auto startTiming = std::chrono::system_clock::now();
+#endif
     // Now we have an initial population ready
     // we can start with the iterations
     for (int iter = 0; iter < generations; ++iter) {
@@ -78,9 +80,9 @@ int SequentialTSP::run(int nCities, unsigned int populationSize, int generations
 
         // Now calculate fitness (a percentage) based on the evaluation
         auto fitness = calculateFitness(evaluation, lb);
-
+#if CONVERGENCE == true
         utils::computeAvgEval(outFile, iter, evaluation);
-
+#endif
         // It's time for reproduction!
         // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
         // Select populationSize elements so that the higher the fitness the higher the probability to be selected
@@ -93,8 +95,12 @@ int SequentialTSP::run(int nCities, unsigned int populationSize, int generations
         fitness.clear();
         evaluation.clear();
 
-        if (iter % 100 == 0) std::cout << "iter " << iter + 1 << std::endl;
+        // if (iter % 100 == 0) std::cout << "iter " << iter + 1 << std::endl;
     }
+#if MEASURE == true
+    auto endTiming = std::chrono::system_clock::now();
+    std::cout << "Seq time: " << std::chrono::duration_cast<std::chrono::milliseconds>(endTiming - startTiming).count() << std::endl;
+#endif
     population.clear();
     outFile.close();
     return 0;
@@ -134,6 +140,10 @@ inline std::vector<double> SequentialTSP::evaluate() {
 #endif
     std::vector<double> evaluation(population.size());
     double totalDistanceOfChromosome;
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
+
     for (unsigned int i = 0; i < population.size(); ++i) {
         totalDistanceOfChromosome = 0;
         for (unsigned int j = 0; j < cities.size() - 1; ++j) {
@@ -142,6 +152,10 @@ inline std::vector<double> SequentialTSP::evaluate() {
         // Evaluation score of i-th chromosome
         evaluation[i] = totalDistanceOfChromosome;
     }
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "sequential evaluate computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
 #if TEST
     auto end = std::chrono::system_clock::now();
     std::cout << "Evaluation - sequential time: "
@@ -190,13 +204,19 @@ inline void SequentialTSP::selection(const std::vector<double> &fitness, unsigne
     }
     std::mt19937 gen(seed); //Standard mersenne_twister_engine
     std::uniform_real_distribution<> dis(0, fitnessSum);
-
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     int pickedIndex;
     for (unsigned long i = 0; i < population.size(); ++i) {
         pickedIndex = pickOne(fitness, gen, dis);
         // timesPicked[pickedIndex]++;
         selection[i] = population[pickedIndex];
     }
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "sequential selection computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     population = std::move(selection);
 
 #if TEST
@@ -244,6 +264,9 @@ inline void SequentialTSP::crossover(const double crossoverRate) {
 #endif
     std::vector<std::vector<int>> newPopulation(population.size());
     double r;
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     for (unsigned long i = 0; i < population.size(); ++i) {
         r = (double) rand() / RAND_MAX;
         if (r >= crossoverRate) {
@@ -257,6 +280,10 @@ inline void SequentialTSP::crossover(const double crossoverRate) {
 
         newPopulation[i] = recombine(mateA, mateB, cities.size());
     }
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "sequential crossover computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     population = std::move(newPopulation);
 #if TEST
     auto end = std::chrono::system_clock::now();
@@ -297,6 +324,9 @@ inline double SequentialTSP::calculateLowerBound() {
     double totalDistanceOfChromosome;
     double dst;
     double lowerBound = 0;
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     for (unsigned int i = 0; i < population.size(); ++i) {
         totalDistanceOfChromosome = 0;
         for (unsigned int j = 0; j < cities.size() - 1; ++j) {
@@ -308,7 +338,10 @@ inline double SequentialTSP::calculateLowerBound() {
         evaluation[i].score = totalDistanceOfChromosome;
         evaluation[i].dstMatrixIndex = i;
     }
-
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "sequential lb computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     // Sort evaluation by score
     std::sort(evaluation.begin(), evaluation.end(), utils::compareEvaluations);
 

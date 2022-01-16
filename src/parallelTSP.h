@@ -70,6 +70,9 @@ int ParallelTSP::run(int nCities, unsigned int populationSize, int generations, 
     // ONE TIME ONLY. DONE SEQUENTIALLY
     generateInitialPopulation(seed);
 
+#if MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     // Now we have an initial population ready
     // we can start with the iterations
     for (int iter = 0; iter < generations; ++iter) {
@@ -81,8 +84,9 @@ int ParallelTSP::run(int nCities, unsigned int populationSize, int generations, 
         // Now calculate fitness (a percentage) based on the evaluation
         auto fitness = calculateFitness(evaluation, lb);
 
+#if TEST == true
         utils::computeAvgEval(outFile, iter, evaluation);
-
+#endif
         // It's time for reproduction!
         // Let's find the intermediate population, aka chromosomes that will be recombined (and then mutated) to be the next generation
         // Select populationSize elements so that the higher the fitness the higher the probability to be selected
@@ -95,8 +99,12 @@ int ParallelTSP::run(int nCities, unsigned int populationSize, int generations, 
         fitness.clear();
         evaluation.clear();
 
-        if (iter % 100 == 0) std::cout << "iter " << iter + 1 << std::endl;
+        // if (iter % 100 == 0) std::cout << "iter " << iter + 1 << std::endl;
     }
+#if MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << nWorkers << " " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     population.clear();
     outFile.close();
     return 0;
@@ -165,6 +173,9 @@ inline std::vector<double> ParallelTSP::evaluate() {
     auto start = std::chrono::system_clock::now();
 #endif
     std::vector<double> evaluation(population.size());
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
 
     auto chunksIt = chunks.begin();
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) {
@@ -179,11 +190,15 @@ inline std::vector<double> ParallelTSP::evaluate() {
                 evaluation[i] = totalDistanceOfChromosome;
             }
         });
-        //! iterate over chunks data structure to assign indexes to the workers
+        // iterate over chunks data structure to assign indexes to the workers
         chunksIt++;
     });
 
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) { worker.get(); });
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "parallel evaluate computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
 
 #if TEST
     auto end = std::chrono::system_clock::now();
@@ -198,19 +213,9 @@ inline std::vector<double> ParallelTSP::calculateFitness(std::vector<double> &ev
     auto start = std::chrono::system_clock::now();
 #endif
     std::vector<double> fitness(evaluation.size());
-
-    auto chunksIt = chunks.begin();
-    std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) {
-        worker = std::async(std::launch::async, [&, start = chunksIt->first, end = chunksIt->second] {
-            for (unsigned int i = start; i <= end; ++i) {
-                fitness[i] = lowerBound / evaluation[i];
-            }
-        });
-        //! iterate over chunks data structure to assign indexes to the workers
-        chunksIt++;
-    });
-
-    std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) { worker.get(); });
+    for (unsigned int i = 0; i < evaluation.size(); ++i) {
+        fitness[i] = lowerBound / evaluation[i];
+    }
 
 #if TEST
     auto end = std::chrono::system_clock::now();
@@ -245,6 +250,9 @@ inline void ParallelTSP::selection(const std::vector<double> &fitness, unsigned 
     std::mt19937 gen(seed); //Standard mersenne_twister_engine
     std::uniform_real_distribution<> dis(0, fitnessSum);
 
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     auto chunksIt = chunks.begin();
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) {
         worker = std::async(std::launch::async, [&, start = chunksIt->first, end = chunksIt->second] {
@@ -255,12 +263,15 @@ inline void ParallelTSP::selection(const std::vector<double> &fitness, unsigned 
                 selection[i] = population[pickedIndex];
             }
         });
-        //! iterate over chunks data structure to assign indexes to the workers
+        // iterate over chunks data structure to assign indexes to the workers
         chunksIt++;
     });
 
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) { worker.get(); });
-
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "parallel selection computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     population = std::move(selection);
 
 #if TEST
@@ -308,7 +319,9 @@ inline void ParallelTSP::crossover(const double crossoverRate) {
     auto start = std::chrono::system_clock::now();
 #endif
     std::vector<std::vector<int>> newPopulation(population.size());
-
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     auto chunksIt = chunks.begin();
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) {
         worker = std::async(std::launch::async, [&, start = chunksIt->first, end = chunksIt->second] {
@@ -327,12 +340,15 @@ inline void ParallelTSP::crossover(const double crossoverRate) {
                 newPopulation[i] = recombine(mateA, mateB, cities.size());
             }
         });
-        //! iterate over chunks data structure to assign indexes to the workers
+        // iterate over chunks data structure to assign indexes to the workers
         chunksIt++;
     });
 
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) { worker.get(); });
-
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "parallel crossover computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     population = std::move(newPopulation);
 
 #if TEST
@@ -347,21 +363,12 @@ inline void ParallelTSP::mutate(const double probability) {
 #if TEST
     auto start = std::chrono::system_clock::now();
 #endif
-    auto chunksIt = chunks.begin();
-    std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) {
-        worker = std::async(std::launch::async, [&, start = chunksIt->first, end = chunksIt->second] {
-            for (unsigned long i = start; i <= end; ++i) {
-                double r = (float) rand() / RAND_MAX;
-                if (r < probability) {
-                    utils::swapTwo(population[i]);
-                } // else, do nothing, aka do not mutate
-            }
-        });
-        //! iterate over chunks data structure to assign indexes to the workers
-        chunksIt++;
-    });
-
-    std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) { worker.get(); });
+    for (auto & toMutate : population) {
+        double r = (float) rand() / RAND_MAX;
+        if (r < probability) {
+            utils::swapTwo(toMutate);
+        } // else, do nothing, aka do not mutate
+    }
 
 #if TEST
     auto end = std::chrono::system_clock::now();
@@ -381,7 +388,9 @@ inline double ParallelTSP::calculateLowerBound() {
     for (unsigned int i = 0; i < population.size(); ++i) {
         dstMatrix[i] = std::vector<double>(cities.size() - 1);
     }
-
+#if DETAILED_MEASURE == true
+    auto start = std::chrono::system_clock::now();
+#endif
     auto chunksIt = chunks.begin();
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) {
         worker = std::async(std::launch::async, [&, start = chunksIt->first, end = chunksIt->second] {
@@ -399,12 +408,15 @@ inline double ParallelTSP::calculateLowerBound() {
                 evaluation[i].dstMatrixIndex = i;
             }
         });
-        //! iterate over chunks data structure to assign indexes to the workers
+        // iterate over chunks data structure to assign indexes to the workers
         chunksIt++;
     });
 
     std::for_each(workers.begin(), workers.end(), [&](std::future<void> &worker) { worker.get(); });
-
+#if DETAILED_MEASURE == true
+    auto end = std::chrono::system_clock::now();
+    std::cout << "parallel lb computation: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
+#endif
     // Sort evaluation by score
     std::sort(evaluation.begin(), evaluation.end(), utils::compareEvaluations);
 
