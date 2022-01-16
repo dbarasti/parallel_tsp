@@ -1,9 +1,13 @@
 #define TEST 0
+#define MEASURE 1
+#define DETAILED_MEASURE 0
+#define CONVERGENCE 0
 
 
 #include <iostream>
 #include "src/sequentialTSP.h"
 #include "src/parallelTSP.h"
+#include "src/fastflowTSP.h"
 
 
 int main(int argc, char *argv[]) {
@@ -34,27 +38,19 @@ int main(int argc, char *argv[]) {
 
     auto seqTSP = SequentialTSP();
     auto parTSP = ParallelTSP();
+    auto ffTSP = FastflowTSP();
 
+    // Sequential execution
+    auto statusSeq = seqTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, seed);
+    if (statusSeq) return -1;
 
-    auto start = std::chrono::system_clock::now();
-
-    // auto statusSeq = seqTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, seed);
-    // if (statusSeq) return -1;
-
-    auto end = std::chrono::system_clock::now();
-    std::cout << "Total Sequential time: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-    start = std::chrono::system_clock::now();
-
+    // STD threads execution
     auto statusPar = parTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability, nWorkers, seed);
     if (statusPar) return -1;
 
-    end = std::chrono::system_clock::now();
-    std::cout << "Total Parallel time: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-
-
+    // FastFlow execution
+    auto statusFF = ffTSP.run(nCities, populationSize, generations, mutationProbability, crossoverProbability,
+                              nWorkers, seed);
+    if (statusFF) return -1;
 }
-
-
 
