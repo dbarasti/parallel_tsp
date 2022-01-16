@@ -4,8 +4,8 @@ project(tsp_ga)
 # find packages
 find_package(Threads REQUIRED)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -O0 -fsanitize=thread -fstack-check -fstack-protector-strong -fno-omit-frame-pointer -g -DDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ftree-vectorize") # vectorization info -fopt-info-vec
+set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -O0 -fsanitize=thread -fstack-check -fstack-protector-strong -fno-omit-frame-pointer -g -DDEBUG -I /home/dbara/lib/fastflow -DBLOCKING_MODE ") # -DNO_DEFAULT_MAPPING
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ftree-vectorize -I /home/dbara/lib/fastflow -DBLOCKING_MODE") # vectorization info -fopt-info-vec -DNO_DEFAULT_MAPPING
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -16,7 +16,9 @@ add_library(GeneticAlgorithms
         src/lib/Point.h
         src/lib/utils.h
         src/parallelTSP.h
-        src/sequentialTSP.h)
+        src/sequentialTSP.h
+        src/fastflowTSP.h
+        src/fastflowTSP_less.h)
 
 add_subdirectory(Google_tests)
 
